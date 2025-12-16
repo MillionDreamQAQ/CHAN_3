@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any
-from datetime import datetime
-
+from typing import List, Optional
 
 class ChanRequest(BaseModel):
     code: str = Field(..., description="股票代码，例如 sz.000001")
     begin_time: str = Field(..., description="开始时间，格式 YYYY-MM-DD")
-    end_time: Optional[str] = Field(None, description="结束时间，格式 YYYY-MM-DD，不传则为当前时间")
+    end_time: Optional[str] = Field(
+        None, description="结束时间，格式 YYYY-MM-DD，不传则为当前时间"
+    )
 
 
 class KLineData(BaseModel):

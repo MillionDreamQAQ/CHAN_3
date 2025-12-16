@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.chan_api import router as chan_router
 
 app = FastAPI(
-    title="缠论分析API",
-    description="基于chan.py的缠论分析后端API",
-    version="1.0.0"
+    title="缠论分析API", description="基于chan.py的缠论分析后端API", version="1.0.0"
 )
 
 # 配置CORS

@@ -2,14 +2,19 @@ import sys
 import os
 
 # 添加父目录到路径，以便导入Chan模块
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
 from Chan import CChan
 from ChanConfig import CChanConfig
 from Common.CEnum import AUTYPE, DATA_SRC, KL_TYPE, BSP_TYPE
 from app.models.schemas import (
-    ChanRequest, ChanResponse, KLineData,
-    BiPoint, SegPoint, BSPoint, ZSInfo
+    ChanRequest,
+    ChanResponse,
+    KLineData,
+    BiPoint,
+    SegPoint,
+    BSPoint,
+    ZSInfo,
 )
 from typing import List
 
@@ -18,20 +23,22 @@ class ChanService:
     @staticmethod
     def calculate_chan(request: ChanRequest) -> ChanResponse:
         # 创建Chan配置
-        config = CChanConfig({
-            "bi_strict": True,
-            "trigger_step": False,
-            "skip_step": 0,
-            "divergence_rate": float("inf"),
-            "bsp2_follow_1": False,
-            "bsp3_follow_1": False,
-            "min_zs_cnt": 0,
-            "bs1_peak": False,
-            "macd_algo": "peak",
-            "bs_type": '1,2,3a,1p,2s,3b',
-            "print_warning": True,
-            "zs_algo": "normal",
-        })
+        config = CChanConfig(
+            {
+                "bi_strict": True,
+                "trigger_step": False,
+                "skip_step": 0,
+                "divergence_rate": float("inf"),
+                "bsp2_follow_1": False,
+                "bsp3_follow_1": False,
+                "min_zs_cnt": 0,
+                "bs1_peak": False,
+                "macd_algo": "peak",
+                "bs_type": "1,2,3a,1p,2s,3b",
+                "print_warning": True,
+                "zs_algo": "normal",
+            }
+        )
 
         # 创建CChan实例
         chan = CChan(
@@ -69,7 +76,7 @@ class ChanService:
             seg_list=seg_list,
             bs_points=bs_points,
             zs_list=zs_list,
-            cbsp_list=cbsp_list
+            cbsp_list=cbsp_list,
         )
 
     @staticmethod
@@ -81,17 +88,19 @@ class ChanService:
             for klu in klc.lst:
                 # 获取成交量，CTradeInfo使用metric字典存储数据
                 volume = 0
-                if hasattr(klu, 'trade_info') and klu.trade_info:
-                    volume = klu.trade_info.metric.get('volume', 0) or 0
+                if hasattr(klu, "trade_info") and klu.trade_info:
+                    volume = klu.trade_info.metric.get("volume", 0) or 0
 
-                klines.append(KLineData(
-                    time=str(klu.time),
-                    open=klu.open,
-                    high=klu.high,
-                    low=klu.low,
-                    close=klu.close,
-                    volume=volume
-                ))
+                klines.append(
+                    KLineData(
+                        time=str(klu.time),
+                        open=klu.open,
+                        high=klu.high,
+                        low=klu.low,
+                        close=klu.close,
+                        volume=volume,
+                    )
+                )
 
         return klines
 
@@ -100,18 +109,20 @@ class ChanService:
         bi_list = []
         kl_list = chan[0]
 
-        if not hasattr(kl_list, 'bi_list') or not kl_list.bi_list:
+        if not hasattr(kl_list, "bi_list") or not kl_list.bi_list:
             return bi_list
 
         for idx, bi in enumerate(kl_list.bi_list):
-            bi_list.append(BiPoint(
-                idx=idx,
-                begin_time=str(bi.get_begin_klu().time),
-                end_time=str(bi.get_end_klu().time),
-                begin_value=bi.get_begin_val(),
-                end_value=bi.get_end_val(),
-                direction='up' if bi.is_up() else 'down'
-            ))
+            bi_list.append(
+                BiPoint(
+                    idx=idx,
+                    begin_time=str(bi.get_begin_klu().time),
+                    end_time=str(bi.get_end_klu().time),
+                    begin_value=bi.get_begin_val(),
+                    end_value=bi.get_end_val(),
+                    direction="up" if bi.is_up() else "down",
+                )
+            )
 
         return bi_list
 
@@ -120,18 +131,20 @@ class ChanService:
         seg_list = []
         kl_list = chan[0]
 
-        if not hasattr(kl_list, 'seg_list') or not kl_list.seg_list:
+        if not hasattr(kl_list, "seg_list") or not kl_list.seg_list:
             return seg_list
 
         for idx, seg in enumerate(kl_list.seg_list):
-            seg_list.append(SegPoint(
-                idx=idx,
-                begin_time=str(seg.start_bi.get_begin_klu().time),
-                end_time=str(seg.end_bi.get_end_klu().time),
-                begin_value=seg.start_bi.get_begin_val(),
-                end_value=seg.end_bi.get_end_val(),
-                direction='up' if seg.is_up() else 'down'
-            ))
+            seg_list.append(
+                SegPoint(
+                    idx=idx,
+                    begin_time=str(seg.start_bi.get_begin_klu().time),
+                    end_time=str(seg.end_bi.get_end_klu().time),
+                    begin_value=seg.start_bi.get_begin_val(),
+                    end_value=seg.end_bi.get_end_val(),
+                    direction="up" if seg.is_up() else "down",
+                )
+            )
 
         return seg_list
 
@@ -140,20 +153,24 @@ class ChanService:
         bs_points = []
         kl_list = chan[0]
 
-        if not hasattr(kl_list, 'bs_point_lst') or not kl_list.bs_point_lst:
+        if not hasattr(kl_list, "bs_point_lst") or not kl_list.bs_point_lst:
             return bs_points
 
         # CBSPointList需要使用getSortedBspList()方法获取列表
         bsp_list = kl_list.bs_point_lst.getSortedBspList()
 
         for bsp in bsp_list:
-            bs_points.append(BSPoint(
-                type=bsp.type.value if hasattr(bsp.type, 'value') else str(bsp.type),
-                time=str(bsp.klu.time),
-                value=bsp.klu.close,
-                klu_idx=bsp.klu.idx,
-                is_buy=bsp.is_buy
-            ))
+            bs_points.append(
+                BSPoint(
+                    type=(
+                        bsp.type.value if hasattr(bsp.type, "value") else str(bsp.type)
+                    ),
+                    time=str(bsp.klu.time),
+                    value=bsp.klu.close,
+                    klu_idx=bsp.klu.idx,
+                    is_buy=bsp.is_buy,
+                )
+            )
 
         return bs_points
 
@@ -162,16 +179,18 @@ class ChanService:
         zs_list = []
         kl_list = chan[0]
 
-        if not hasattr(kl_list, 'zs_list') or not kl_list.zs_list:
+        if not hasattr(kl_list, "zs_list") or not kl_list.zs_list:
             return zs_list
 
         for zs in kl_list.zs_list:
-            zs_list.append(ZSInfo(
-                begin_time=str(zs.begin.time),
-                end_time=str(zs.end.time),
-                high=zs.high,
-                low=zs.low,
-            ))
+            zs_list.append(
+                ZSInfo(
+                    begin_time=str(zs.begin.time),
+                    end_time=str(zs.end.time),
+                    high=zs.high,
+                    low=zs.low,
+                )
+            )
 
         return zs_list
 
@@ -179,26 +198,32 @@ class ChanService:
     def _extract_cbsp_list(chan: CChan) -> List[BSPoint]:
         cbsp_list = []
 
-        if hasattr(chan[0], 'cbsp_strategy') and chan[0].cbsp_strategy:
+        if hasattr(chan[0], "cbsp_strategy") and chan[0].cbsp_strategy:
             try:
                 # cbsp_strategy可能也使用类似的结构，尝试获取列表
                 bs_point_lst = chan[0].cbsp_strategy.bs_point_lst
 
                 # 如果有getSortedBspList方法，使用它
-                if hasattr(bs_point_lst, 'getSortedBspList'):
+                if hasattr(bs_point_lst, "getSortedBspList"):
                     cbsp_items = bs_point_lst.getSortedBspList()
                 else:
                     # 否则尝试直接迭代
                     cbsp_items = bs_point_lst
 
                 for cbsp in cbsp_items:
-                    cbsp_list.append(BSPoint(
-                        type=cbsp.type.value if hasattr(cbsp, 'type') and hasattr(cbsp.type, 'value') else 'cbsp',
-                        time=str(cbsp.klu.time),
-                        value=cbsp.klu.close,
-                        klu_idx=cbsp.klu.idx,
-                        is_buy=cbsp.is_buy
-                    ))
+                    cbsp_list.append(
+                        BSPoint(
+                            type=(
+                                cbsp.type.value
+                                if hasattr(cbsp, "type") and hasattr(cbsp.type, "value")
+                                else "cbsp"
+                            ),
+                            time=str(cbsp.klu.time),
+                            value=cbsp.klu.close,
+                            klu_idx=cbsp.klu.idx,
+                            is_buy=cbsp.is_buy,
+                        )
+                    )
             except Exception as e:
                 # 如果提取CBSP失败，记录但不影响整体结果
                 print(f"Warning: Failed to extract CBSP list: {e}")
