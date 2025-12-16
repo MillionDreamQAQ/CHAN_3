@@ -11,6 +11,8 @@ import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
 
 const ChartContainer = ({ data }) => {
+  const [loading, setLoading] = useState(true);
+
   const chartContainerRef = useRef(null);
   const macdContainerRef = useRef(null);
   const mainChartRef = useRef(null);
@@ -24,6 +26,8 @@ const ChartContainer = ({ data }) => {
   const seriesMarkersRef = useRef(null);
 
   useEffect(() => {
+    setLoading(true);
+
     if (!chartContainerRef.current || !macdContainerRef.current) return;
 
     const containerWidth =
@@ -162,6 +166,8 @@ const ChartContainer = ({ data }) => {
 
   useEffect(() => {
     if (!data || !candlestickSeriesRef.current) return;
+
+    setLoading(true);
 
     const formatTime = (timeStr) => {
       return timeStr.replace(/\//g, "-");
@@ -367,6 +373,8 @@ const ChartContainer = ({ data }) => {
       .timeScale()
       .subscribeVisibleLogicalRangeChange(syncTimeFromMacd);
 
+    setLoading(false);
+
     return () => {
       mainChartRef.current.unsubscribeCrosshairMove(handleMainCrosshairMove);
       macdChartRef.current.unsubscribeCrosshairMove(handleMACDCrosshairMove);
@@ -472,7 +480,7 @@ const ChartContainer = ({ data }) => {
           if (item.histogram) {
             item.histogram = item.histogram * 2;
           }
-          
+
           if (item) {
             difData.push({
               time,
@@ -502,6 +510,12 @@ const ChartContainer = ({ data }) => {
 
   return (
     <div className="chart-container">
+      {loading && (
+        <div className="loading-indicator">
+          <div className="spinner" />
+          <p>图表数据加载中...</p>
+        </div>
+      )}
       <div className="chart-wrapper" ref={chartContainerRef}>
         <div
           ref={tooltipRef}
