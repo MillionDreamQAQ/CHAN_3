@@ -3,26 +3,37 @@ import {
   createChart,
   CandlestickSeries,
   LineSeries,
+  HistogramSeries,
   createSeriesMarkers,
 } from "lightweight-charts";
+import { MACD } from "technicalindicators";
 import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
 
 const ChartContainer = ({ data }) => {
   const chartContainerRef = useRef(null);
+  const macdContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const macdChartRef = useRef(null);
   const candlestickSeriesRef = useRef(null);
   const lineSeriesListRef = useRef([]);
+  const macdSeriesListRef = useRef([]);
   const tooltipRef = useRef(null);
   const markersDataRef = useRef([]);
   const seriesMarkersRef = useRef(null);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || !macdContainerRef.current) return;
 
-    const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight || 600,
+    // 获取统一的宽度（使用父容器宽度）
+    const containerWidth =
+      chartContainerRef.current.parentElement?.clientWidth ||
+      chartContainerRef.current.clientWidth;
+
+    // 创建K线主图
+    const mainChart = createChart(chartContainerRef.current, {
+      width: containerWidth,
+      height: chartContainerRef.current.clientHeight || 400,
       layout: {
         background: { color: "#ffffff" },
         textColor: "#333",
@@ -32,7 +43,7 @@ const ChartContainer = ({ data }) => {
         horzLines: { color: "#f0f0f0" },
       },
       crosshair: {
-        mode: 0, // 十字光标模式
+        mode: 0,
       },
       rightPriceScale: {
         borderColor: "#d1d4dc",
@@ -47,9 +58,39 @@ const ChartContainer = ({ data }) => {
       },
     });
 
-    chartRef.current = chart;
+    chartRef.current = mainChart;
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+    // 创建MACD副图（使用完全相同的配置）
+    const macdChart = createChart(macdContainerRef.current, {
+      width: containerWidth,
+      height: macdContainerRef.current.clientHeight || 150,
+      layout: {
+        background: { color: "#ffffff" },
+        textColor: "#333",
+      },
+      grid: {
+        vertLines: { color: "#f0f0f0" },
+        horzLines: { color: "#f0f0f0" },
+      },
+      crosshair: {
+        mode: 0,
+      },
+      rightPriceScale: {
+        borderColor: "#d1d4dc",
+      },
+      timeScale: {
+        borderColor: "#d1d4dc",
+        timeVisible: false,
+        secondsVisible: false,
+      },
+      localization: {
+        dateFormat: "yyyy-MM-dd",
+      },
+    });
+
+    macdChartRef.current = macdChart;
+
+    const candlestickSeries = mainChart.addSeries(CandlestickSeries, {
       upColor: "#ef5350",
       downColor: "#26a69a",
       borderVisible: false,
@@ -58,16 +99,30 @@ const ChartContainer = ({ data }) => {
     });
     candlestickSeriesRef.current = candlestickSeries;
 
+    mainChart.timeScale().subscribeVisibleLogicalRangeChange((timeRange) => {
+      macdChart.timeScale().setVisibleLogicalRange(timeRange);
+    });
+
     const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
+      const resizeWidth =
+        chartContainerRef.current?.parentElement?.clientWidth ||
+        chartContainerRef.current?.clientWidth;
+
+      if (chartContainerRef.current && resizeWidth) {
+        mainChart.applyOptions({
+          width: resizeWidth,
           height: chartContainerRef.current.clientHeight,
+        });
+      }
+      if (macdContainerRef.current && resizeWidth) {
+        macdChart.applyOptions({
+          width: resizeWidth,
+          height: macdContainerRef.current.clientHeight,
         });
       }
     };
 
-    chart.subscribeCrosshairMove((param) => {
+    mainChart.subscribeCrosshairMove((param) => {
       if (
         !tooltipRef.current ||
         !param.time ||
@@ -105,7 +160,8 @@ const ChartContainer = ({ data }) => {
       if (seriesMarkersRef.current) {
         seriesMarkersRef.current.detach();
       }
-      chart.remove();
+      mainChart.remove();
+      macdChart.remove();
     };
   }, []);
 
@@ -240,8 +296,142 @@ const ChartContainer = ({ data }) => {
       markersDataRef.current = [];
     }
 
-    chartRef.current.timeScale().fitContent();
+    if (macdChartRef.current) {
+      macdSeriesListRef.current.forEach((series) => {
+        macdChartRef.current.removeSeries(series);
+      });
+      macdSeriesListRef.current = [];
+
+      if (data.klines && data.klines.length >= 26) {
+        const macdData = calculateMACD(data.klines, formatTime);
+
+        if (
+          macdData.histogram.length > 0 &&
+          macdData.dif.length > 0 &&
+          macdData.dea.length > 0
+        ) {
+          const macdHistogramSeries = macdChartRef.current.addSeries(
+            HistogramSeries,
+            {
+              color: "#26a69a",
+              priceFormat: {
+                type: "price",
+                precision: 4,
+                minMove: 0.0001,
+              },
+              priceLineVisible: false,
+              lastValueVisible: true,
+            }
+          );
+          macdHistogramSeries.setData(macdData.histogram);
+
+          const difLineSeries = macdChartRef.current.addSeries(LineSeries, {
+            color: "#2962FF",
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          });
+          difLineSeries.setData(macdData.dif);
+
+          const deaLineSeries = macdChartRef.current.addSeries(LineSeries, {
+            color: "#FF6D00",
+            lineWidth: 1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          });
+          deaLineSeries.setData(macdData.dea);
+
+          const zeroLineSeries = macdChartRef.current.addSeries(LineSeries, {
+            color: "#787B86",
+            lineWidth: 1,
+            lineStyle: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+          });
+          const zeroLineData = macdData.dif.map((item) => ({
+            time: item.time,
+            value: 0,
+          }));
+          zeroLineSeries.setData(zeroLineData);
+
+          macdSeriesListRef.current.push(
+            macdHistogramSeries,
+            difLineSeries,
+            deaLineSeries,
+            zeroLineSeries
+          );
+        }
+      }
+    }
   }, [data]);
+
+  const calculateMACD = (klines, formatTime) => {
+    try {
+      if (!klines || klines.length < 26) {
+        return { dif: [], dea: [], histogram: [] };
+      }
+
+      const closePrices = klines.map((k) => parseFloat(k.close));
+
+      const macdInput = {
+        values: closePrices,
+        fastPeriod: 12,
+        slowPeriod: 26,
+        signalPeriod: 9,
+        SimpleMAOscillator: false,
+        SimpleMASignal: false,
+      };
+
+      const macdResult = MACD.calculate(macdInput);
+
+      if (!macdResult || macdResult.length === 0) {
+        return { dif: [], dea: [], histogram: [] };
+      }
+
+      const difData = [];
+      const deaData = [];
+      const histogram = [];
+
+      const startIndex = closePrices.length - macdResult.length;
+
+      for (let i = 0; i < klines.length; i++) {
+        const time = formatTime(klines[i].time);
+
+        if (i < startIndex) {
+          // 前面没有MACD数据的部分，用0填充
+          difData.push({ time, value: 0 });
+          deaData.push({ time, value: 0 });
+          histogram.push({ time, value: 0, color: "rgba(0,0,0,0)" });
+        } else {
+          const macdIndex = i - startIndex;
+          const item = macdResult[macdIndex];
+
+          if (item) {
+            difData.push({
+              time,
+              value: item.MACD ?? 0,
+            });
+
+            deaData.push({
+              time,
+              value: item.signal ?? 0,
+            });
+
+            histogram.push({
+              time,
+              value: item.histogram ?? 0,
+              color: item.histogram >= 0 ? "#ef5350" : "#26a69a",
+            });
+          }
+        }
+      }
+
+      return { dif: difData, dea: deaData, histogram };
+    } catch (error) {
+      console.error("MACD calculation error:", error);
+      return { dif: [], dea: [], histogram: [] };
+    }
+  };
 
   return (
     <div className="chart-container">
@@ -263,6 +453,7 @@ const ChartContainer = ({ data }) => {
           }}
         />
       </div>
+      <div className="macd-wrapper" ref={macdContainerRef} />
     </div>
   );
 };

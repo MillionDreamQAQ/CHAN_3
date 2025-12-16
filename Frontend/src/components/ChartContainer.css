@@ -7,8 +7,16 @@
 }
 
 .chart-wrapper {
+  flex: 3;
+  position: relative;
+  min-height: 400px;
+}
+
+.macd-wrapper {
   flex: 1;
   position: relative;
+  min-height: 150px;
+  border-top: 1px solid #333;
 }
 
 .empty-state {
