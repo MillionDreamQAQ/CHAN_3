@@ -4,16 +4,16 @@ import dayjs from "dayjs";
 import "./Header.css";
 
 const Header = ({ onQuery, loading }) => {
-  // 获取今天的日期
   const getTodayDate = () => {
     return dayjs().format("YYYY-MM-DD");
   };
 
-  const [code, setCode] = useState("sz.000001");
-  const [beginTime, setBeginTime] = useState("2020-01-01");
+  const [code, setCode] = useState("sh.000001");
+  const [beginTime, setBeginTime] = useState(
+    new dayjs().subtract(10, "year").format("YYYY-MM-DD")
+  );
   const [endTime, setEndTime] = useState(getTodayDate());
 
-  // 首次加载时自动查询
   useEffect(() => {
     onQuery({ code, begin_time: beginTime, end_time: endTime });
   }, []);
