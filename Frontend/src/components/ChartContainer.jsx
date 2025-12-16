@@ -13,11 +13,12 @@ import { getBsPointData } from "../utils/utils";
 const ChartContainer = ({ data }) => {
   const chartContainerRef = useRef(null);
   const macdContainerRef = useRef(null);
-  const chartRef = useRef(null);
+  const mainChartRef = useRef(null);
   const macdChartRef = useRef(null);
   const candlestickSeriesRef = useRef(null);
   const lineSeriesListRef = useRef([]);
   const macdSeriesListRef = useRef([]);
+  const histogramSeriesRef = useRef(null);
   const tooltipRef = useRef(null);
   const markersDataRef = useRef([]);
   const seriesMarkersRef = useRef(null);
@@ -25,12 +26,10 @@ const ChartContainer = ({ data }) => {
   useEffect(() => {
     if (!chartContainerRef.current || !macdContainerRef.current) return;
 
-    // 获取统一的宽度（使用父容器宽度）
     const containerWidth =
       chartContainerRef.current.parentElement?.clientWidth ||
       chartContainerRef.current.clientWidth;
 
-    // 创建K线主图
     const mainChart = createChart(chartContainerRef.current, {
       width: containerWidth,
       height: chartContainerRef.current.clientHeight || 400,
@@ -43,7 +42,7 @@ const ChartContainer = ({ data }) => {
         horzLines: { color: "#f0f0f0" },
       },
       crosshair: {
-        mode: 0,
+        mode: 1,
       },
       rightPriceScale: {
         borderColor: "#d1d4dc",
@@ -58,9 +57,8 @@ const ChartContainer = ({ data }) => {
       },
     });
 
-    chartRef.current = mainChart;
+    mainChartRef.current = mainChart;
 
-    // 创建MACD副图（使用完全相同的配置）
     const macdChart = createChart(macdContainerRef.current, {
       width: containerWidth,
       height: macdContainerRef.current.clientHeight || 150,
@@ -73,7 +71,7 @@ const ChartContainer = ({ data }) => {
         horzLines: { color: "#f0f0f0" },
       },
       crosshair: {
-        mode: 0,
+        mode: 1,
       },
       rightPriceScale: {
         borderColor: "#d1d4dc",
@@ -134,7 +132,6 @@ const ChartContainer = ({ data }) => {
         return;
       }
 
-      // 查找当前时间点的 marker
       const marker = markersDataRef.current.find((m) => m.time === param.time);
 
       if (marker && marker.tooltip) {
@@ -183,13 +180,13 @@ const ChartContainer = ({ data }) => {
     candlestickSeriesRef.current.setData(klineData);
 
     lineSeriesListRef.current.forEach((series) => {
-      chartRef.current.removeSeries(series);
+      mainChartRef.current.removeSeries(series);
     });
     lineSeriesListRef.current = [];
 
-    if (data.bi_list && data.bi_list.length > 0 && chartRef.current) {
+    if (data.bi_list && data.bi_list.length > 0 && mainChartRef.current) {
       data.bi_list.forEach((bi) => {
-        const biLineSeries = chartRef.current.addSeries(LineSeries, {
+        const biLineSeries = mainChartRef.current.addSeries(LineSeries, {
           color: "#3300ffff",
           lineWidth: 1,
           lineStyle: 0,
@@ -206,9 +203,9 @@ const ChartContainer = ({ data }) => {
       });
     }
 
-    if (data.seg_list && data.seg_list.length > 0 && chartRef.current) {
+    if (data.seg_list && data.seg_list.length > 0 && mainChartRef.current) {
       data.seg_list.forEach((seg) => {
-        const lineSeries = chartRef.current.addSeries(LineSeries, {
+        const lineSeries = mainChartRef.current.addSeries(LineSeries, {
           color: "#ff0000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -225,11 +222,9 @@ const ChartContainer = ({ data }) => {
       });
     }
 
-    // 绘制中枢
-    if (data.zs_list && data.zs_list.length > 0 && chartRef.current) {
+    if (data.zs_list && data.zs_list.length > 0 && mainChartRef.current) {
       data.zs_list.forEach((zs) => {
-        // 绘制中枢上边线
-        const zsTopLine = chartRef.current.addSeries(LineSeries, {
+        const zsTopLine = mainChartRef.current.addSeries(LineSeries, {
           color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -242,8 +237,7 @@ const ChartContainer = ({ data }) => {
           { time: formatTime(zs.end_time), value: zs.high },
         ]);
 
-        // 绘制中枢下边线
-        const zsBottomLine = chartRef.current.addSeries(LineSeries, {
+        const zsBottomLine = mainChartRef.current.addSeries(LineSeries, {
           color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -316,13 +310,14 @@ const ChartContainer = ({ data }) => {
               color: "#26a69a",
               priceFormat: {
                 type: "price",
-                precision: 4,
-                minMove: 0.0001,
+                precision: 3,
+                minMove: 0.001,
               },
               priceLineVisible: false,
               lastValueVisible: true,
             }
           );
+          histogramSeriesRef.current = macdHistogramSeries;
           macdHistogramSeries.setData(macdData.histogram);
 
           const difLineSeries = macdChartRef.current.addSeries(LineSeries, {
@@ -363,6 +358,25 @@ const ChartContainer = ({ data }) => {
         }
       }
     }
+
+    const handleMainCrosshairMove = (param) => {
+      if (param.time) {
+        const macdHistogramData = histogramSeriesRef.current.dataByIndex(
+          param.logical
+        );
+
+        if (macdHistogramData) {
+          macdChartRef.current.setCrosshairPosition(
+            macdHistogramData.value,
+            param.time,
+            histogramSeriesRef.current
+          );
+        }
+      } else {
+        macdChartRef.current.clearCrosshairPosition();
+      }
+    };
+    mainChartRef.current.subscribeCrosshairMove(handleMainCrosshairMove);
   }, [data]);
 
   const calculateMACD = (klines, formatTime) => {
