@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { createChart } from "lightweight-charts";
+import {
+  createChart,
+  CandlestickSeries,
+  LineSeries,
+  createSeriesMarkers,
+} from "lightweight-charts";
 import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
 
@@ -10,6 +15,7 @@ const ChartContainer = ({ data }) => {
   const lineSeriesListRef = useRef([]);
   const tooltipRef = useRef(null);
   const markersDataRef = useRef([]);
+  const seriesMarkersRef = useRef(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -43,7 +49,7 @@ const ChartContainer = ({ data }) => {
 
     chartRef.current = chart;
 
-    const candlestickSeries = chart.addCandlestickSeries({
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#ef5350",
       downColor: "#26a69a",
       borderVisible: false,
@@ -96,6 +102,9 @@ const ChartContainer = ({ data }) => {
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      if (seriesMarkersRef.current) {
+        seriesMarkersRef.current.detach();
+      }
       chart.remove();
     };
   }, []);
@@ -124,7 +133,7 @@ const ChartContainer = ({ data }) => {
 
     if (data.bi_list && data.bi_list.length > 0 && chartRef.current) {
       data.bi_list.forEach((bi) => {
-        const biLineSeries = chartRef.current.addLineSeries({
+        const biLineSeries = chartRef.current.addSeries(LineSeries, {
           color: "#3300ffff",
           lineWidth: 1,
           lineStyle: 0,
@@ -143,7 +152,7 @@ const ChartContainer = ({ data }) => {
 
     if (data.seg_list && data.seg_list.length > 0 && chartRef.current) {
       data.seg_list.forEach((seg) => {
-        const lineSeries = chartRef.current.addLineSeries({
+        const lineSeries = chartRef.current.addSeries(LineSeries, {
           color: "#ff0000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -164,7 +173,7 @@ const ChartContainer = ({ data }) => {
     if (data.zs_list && data.zs_list.length > 0 && chartRef.current) {
       data.zs_list.forEach((zs) => {
         // 绘制中枢上边线
-        const zsTopLine = chartRef.current.addLineSeries({
+        const zsTopLine = chartRef.current.addSeries(LineSeries, {
           color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -178,7 +187,7 @@ const ChartContainer = ({ data }) => {
         ]);
 
         // 绘制中枢下边线
-        const zsBottomLine = chartRef.current.addLineSeries({
+        const zsBottomLine = chartRef.current.addSeries(LineSeries, {
           color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
@@ -193,6 +202,11 @@ const ChartContainer = ({ data }) => {
 
         lineSeriesListRef.current.push(zsTopLine, zsBottomLine);
       });
+    }
+
+    if (seriesMarkersRef.current) {
+      seriesMarkersRef.current.detach();
+      seriesMarkersRef.current = null;
     }
 
     if (data.bs_points && data.bs_points.length > 0) {
@@ -217,7 +231,11 @@ const ChartContainer = ({ data }) => {
 
       bsMarkers.sort((a, b) => new Date(a.time) - new Date(b.time));
       markersDataRef.current = bsMarkers;
-      candlestickSeriesRef.current.setMarkers(bsMarkers);
+
+      seriesMarkersRef.current = createSeriesMarkers(
+        candlestickSeriesRef.current,
+        bsMarkers
+      );
     } else {
       markersDataRef.current = [];
     }
