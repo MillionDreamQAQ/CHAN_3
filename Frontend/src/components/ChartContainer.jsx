@@ -56,7 +56,6 @@ const ChartContainer = ({ data }) => {
         dateFormat: "yyyy-MM-dd",
       },
     });
-
     mainChartRef.current = mainChart;
 
     const macdChart = createChart(macdContainerRef.current, {
@@ -85,7 +84,6 @@ const ChartContainer = ({ data }) => {
         dateFormat: "yyyy-MM-dd",
       },
     });
-
     macdChartRef.current = macdChart;
 
     const candlestickSeries = mainChart.addSeries(CandlestickSeries, {
@@ -359,25 +357,76 @@ const ChartContainer = ({ data }) => {
       }
     }
 
-    const handleMainCrosshairMove = (param) => {
-      if (param.time) {
-        const macdHistogramData = histogramSeriesRef.current.dataByIndex(
-          param.logical
-        );
-
-        if (macdHistogramData) {
-          macdChartRef.current.setCrosshairPosition(
-            macdHistogramData.value,
-            param.time,
-            histogramSeriesRef.current
-          );
-        }
-      } else {
-        macdChartRef.current.clearCrosshairPosition();
-      }
-    };
     mainChartRef.current.subscribeCrosshairMove(handleMainCrosshairMove);
+    macdChartRef.current.subscribeCrosshairMove(handleMACDCrosshairMove);
+
+    mainChartRef.current
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(syncTimeFromMain);
+    macdChartRef.current
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(syncTimeFromMacd);
+
+    return () => {
+      mainChartRef.current.unsubscribeCrosshairMove(handleMainCrosshairMove);
+      macdChartRef.current.unsubscribeCrosshairMove(handleMACDCrosshairMove);
+
+      mainChartRef.current
+        .timeScale()
+        .unsubscribeVisibleLogicalRangeChange(syncTimeFromMain);
+      macdChartRef.current
+        .timeScale()
+        .unsubscribeVisibleLogicalRangeChange(syncTimeFromMacd);
+    };
   }, [data]);
+
+  const handleMainCrosshairMove = (param) => {
+    if (param.time) {
+      const macdHistogramData = histogramSeriesRef.current.dataByIndex(
+        param.logical
+      );
+
+      if (macdHistogramData) {
+        macdChartRef.current.setCrosshairPosition(
+          macdHistogramData.value,
+          param.time,
+          histogramSeriesRef.current
+        );
+      }
+    } else {
+      macdChartRef.current.clearCrosshairPosition();
+    }
+  };
+
+  const handleMACDCrosshairMove = (param) => {
+    if (param.time) {
+      const klineData = candlestickSeriesRef.current.dataByIndex(param.logical);
+
+      if (klineData) {
+        mainChartRef.current.setCrosshairPosition(
+          klineData.close,
+          param.time,
+          candlestickSeriesRef.current
+        );
+      }
+    } else {
+      mainChartRef.current.clearCrosshairPosition();
+    }
+  };
+
+  const syncTimeFromMain = () => {
+    const mainRange = mainChartRef.current.timeScale().getVisibleLogicalRange();
+    if (mainRange) {
+      macdChartRef.current.timeScale().setVisibleLogicalRange(mainRange);
+    }
+  };
+
+  const syncTimeFromMacd = () => {
+    const macdRange = macdChartRef.current.timeScale().getVisibleLogicalRange();
+    if (macdRange) {
+      mainChartRef.current.timeScale().setVisibleLogicalRange(macdRange);
+    }
+  };
 
   const calculateMACD = (klines, formatTime) => {
     try {
