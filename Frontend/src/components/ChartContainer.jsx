@@ -469,6 +469,10 @@ const ChartContainer = ({ data }) => {
           const macdIndex = i - startIndex;
           const item = macdResult[macdIndex];
 
+          if (item.histogram) {
+            item.histogram = item.histogram * 2;
+          }
+          
           if (item) {
             difData.push({
               time,
