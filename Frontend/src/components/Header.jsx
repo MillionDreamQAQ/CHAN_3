@@ -10,7 +10,7 @@ const Header = ({ onQuery, loading }) => {
   };
 
   const [code, setCode] = useState("sz.000001");
-  const [beginTime, setBeginTime] = useState("2023-01-01");
+  const [beginTime, setBeginTime] = useState("2020-01-01");
   const [endTime, setEndTime] = useState(getTodayDate());
 
   // 首次加载时自动查询
