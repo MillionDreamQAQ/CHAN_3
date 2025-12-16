@@ -1,10 +1,22 @@
-import { useState } from 'react';
-import './Header.css';
+import { useState, useEffect } from "react";
+import { Input, DatePicker, Button } from "antd";
+import dayjs from "dayjs";
+import "./Header.css";
 
 const Header = ({ onQuery, loading }) => {
-  const [code, setCode] = useState('sz.000001');
-  const [beginTime, setBeginTime] = useState('2023-01-01');
-  const [endTime, setEndTime] = useState('');
+  // 获取今天的日期
+  const getTodayDate = () => {
+    return dayjs().format("YYYY-MM-DD");
+  };
+
+  const [code, setCode] = useState("sz.000001");
+  const [beginTime, setBeginTime] = useState("2023-01-01");
+  const [endTime, setEndTime] = useState(getTodayDate());
+
+  // 首次加载时自动查询
+  useEffect(() => {
+    onQuery({ code, begin_time: beginTime, end_time: endTime });
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -14,39 +26,45 @@ const Header = ({ onQuery, loading }) => {
   return (
     <header className="app-header">
       <div className="header-content">
-        <h1 className="header-title">缠论分析系统</h1>
         <form className="query-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>股票代码</label>
-            <input
-              type="text"
+            <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="例如: sz.000001"
-              required
+              placeholder="如: sz.000001"
+              style={{
+                border: "1px solid #d9d9d9",
+                borderRadius: "6px",
+                width: "160px",
+              }}
             />
           </div>
           <div className="form-group">
-            <label>开始时间</label>
-            <input
-              type="date"
-              value={beginTime}
-              onChange={(e) => setBeginTime(e.target.value)}
-              required
+            <DatePicker
+              value={beginTime ? dayjs(beginTime) : null}
+              onChange={(date, dateString) => setBeginTime(dateString)}
+              placeholder="选择开始时间"
+              format="YYYY-MM-DD"
+              style={{ width: "100%" }}
             />
           </div>
           <div className="form-group">
-            <label>结束时间</label>
-            <input
-              type="date"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              placeholder="不填则为当前时间"
+            <DatePicker
+              value={endTime ? dayjs(endTime) : null}
+              onChange={(date, dateString) => setEndTime(dateString)}
+              placeholder="选择结束时间"
+              format="YYYY-MM-DD"
+              style={{ width: "100%" }}
             />
           </div>
-          <button type="submit" className="query-button" disabled={loading}>
-            {loading ? '查询中...' : '查询'}
-          </button>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={loading}
+            className="query-button"
+          >
+            查询
+          </Button>
         </form>
       </div>
     </header>
