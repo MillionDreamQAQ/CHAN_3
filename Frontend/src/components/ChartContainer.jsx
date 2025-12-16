@@ -125,7 +125,7 @@ const ChartContainer = ({ data }) => {
     if (data.bi_list && data.bi_list.length > 0 && chartRef.current) {
       data.bi_list.forEach((bi) => {
         const biLineSeries = chartRef.current.addLineSeries({
-          color: "#230bffff",
+          color: "#3300ffff",
           lineWidth: 1,
           lineStyle: 0,
           priceLineVisible: false,
@@ -144,7 +144,7 @@ const ChartContainer = ({ data }) => {
     if (data.seg_list && data.seg_list.length > 0 && chartRef.current) {
       data.seg_list.forEach((seg) => {
         const lineSeries = chartRef.current.addLineSeries({
-          color: "#dc1818ff",
+          color: "#ff0000ff",
           lineWidth: 2,
           lineStyle: 0,
           priceLineVisible: false,
@@ -165,7 +165,7 @@ const ChartContainer = ({ data }) => {
       data.zs_list.forEach((zs) => {
         // 绘制中枢上边线
         const zsTopLine = chartRef.current.addLineSeries({
-          color: "#ff0000ff",
+          color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
           priceLineVisible: false,
@@ -179,7 +179,7 @@ const ChartContainer = ({ data }) => {
 
         // 绘制中枢下边线
         const zsBottomLine = chartRef.current.addLineSeries({
-          color: "#ff0000ff",
+          color: "#000000ff",
           lineWidth: 2,
           lineStyle: 0,
           priceLineVisible: false,
@@ -201,7 +201,7 @@ const ChartContainer = ({ data }) => {
         return {
           time: formatTime(bs.time),
           position: bs.is_buy ? "belowBar" : "aboveBar",
-          color: bs.is_buy ? "#ff0000" : "#1bb31bff",
+          color: bs.is_buy ? "#ff0000ff" : "#1bb31bff",
           shape: bs.is_buy ? "arrowUp" : "arrowDown",
           text: textData.text,
           size: 2,
