@@ -16,12 +16,22 @@ const Header = ({ onQuery, loading }) => {
   const [endTime, setEndTime] = useState(getTodayDate());
 
   useEffect(() => {
-    onQuery({ code, kline_type: klineType, begin_time: beginTime, end_time: endTime });
+    onQuery({
+      code,
+      kline_type: klineType,
+      begin_time: beginTime,
+      end_time: endTime,
+    });
   }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onQuery({ code, kline_type: klineType, begin_time: beginTime, end_time: endTime || undefined });
+    onQuery({
+      code,
+      kline_type: klineType,
+      begin_time: beginTime,
+      end_time: endTime || undefined,
+    });
   };
 
   return (
