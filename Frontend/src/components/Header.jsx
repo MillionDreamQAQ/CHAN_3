@@ -110,7 +110,7 @@ const Header = ({ onQuery, loading }) => {
             <Select
               value={klineType}
               onChange={setKlineType}
-              style={{ width: "80px" }}
+              style={{ width: "100px" }}
               options={[
                 { value: "day", label: "日线" },
                 { value: "week", label: "周线" },
