@@ -11,7 +11,7 @@ import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
 import dayjs from "dayjs";
 
-const ChartContainer = ({ data, klineType }) => {
+const ChartContainer = ({ data }) => {
   const [loading, setLoading] = useState(true);
 
   const chartContainerRef = useRef(null);
