@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import Header from './components/Header';
-import ChartContainer from './components/ChartContainer';
-import { chanApi } from './services/api';
-import './App.css';
+import { useState } from "react";
+import Header from "./components/Header";
+import ChartContainer from "./components/ChartContainer";
+import { chanApi } from "./services/api";
+import { message } from "antd";
+import "./App.css";
 
 function App() {
   const [data, setData] = useState(null);
@@ -10,15 +11,19 @@ function App() {
   const [error, setError] = useState(null);
 
   const handleQuery = async (request) => {
+    message.info("正在查询，请稍候...");
     setLoading(true);
     setError(null);
 
     try {
       const result = await chanApi.calculateChan(request);
       setData(result);
+      message.success("查询成功！");
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || '查询失败，请检查网络连接');
-      console.error('Query error:', err);
+      setError(
+        err.response?.data?.detail || err.message || "查询失败，请检查网络连接"
+      );
+      console.error("Query error:", err);
     } finally {
       setLoading(false);
     }
@@ -31,7 +36,9 @@ function App() {
         <div className="error-message">
           <span className="error-icon">⚠</span>
           <span>{error}</span>
-          <button className="error-close" onClick={() => setError(null)}>×</button>
+          <button className="error-close" onClick={() => setError(null)}>
+            ×
+          </button>
         </div>
       )}
       <div className="main-content">
