@@ -62,6 +62,10 @@ class ChanService:
             "day": KL_TYPE.K_DAY,
             "week": KL_TYPE.K_WEEK,
             "month": KL_TYPE.K_MON,
+            "5m": KL_TYPE.K_5M,
+            "15m": KL_TYPE.K_15M,
+            "30m": KL_TYPE.K_30M,
+            "60m": KL_TYPE.K_60M,
         }
         kl_type = kline_type_map.get(request.kline_type or "day", KL_TYPE.K_DAY)
 
@@ -140,7 +144,7 @@ class ChanService:
 
                 klines.append(
                     KLineData(
-                        time=str(klu.time),
+                        time=klu.time.ts,
                         open=klu.open,
                         high=klu.high,
                         low=klu.low,

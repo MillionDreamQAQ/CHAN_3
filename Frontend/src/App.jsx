@@ -9,12 +9,14 @@ function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [klineType, setKlineType] = useState("day");
 
   const handleQuery = async (request) => {
     message.info("正在查询，请稍候...");
     setLoading(true);
     setError(null);
-
+    setKlineType(request.kline_type);
+    
     try {
       const result = await chanApi.calculateChan(request);
       setData(result);
@@ -42,7 +44,7 @@ function App() {
         </div>
       )}
       <div className="main-content">
-        <ChartContainer data={data} />
+        <ChartContainer data={data} klineType={klineType} />
       </div>
     </div>
   );

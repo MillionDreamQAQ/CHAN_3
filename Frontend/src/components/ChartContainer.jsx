@@ -9,8 +9,9 @@ import {
 import { MACD } from "technicalindicators";
 import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
+import dayjs from "dayjs";
 
-const ChartContainer = ({ data }) => {
+const ChartContainer = ({ data, klineType }) => {
   const [loading, setLoading] = useState(true);
 
   const chartContainerRef = useRef(null);
@@ -202,12 +203,22 @@ const ChartContainer = ({ data }) => {
 
     setLoading(true);
 
-    const formatTime = (timeStr) => {
-      return timeStr.replace(/\//g, "-");
+    // magic method
+    // 尚不明确为什么会出现偏差，暂时先这么处理
+    const convertToUnixTimestamp = (timeStr) => {
+      if (
+        klineType === "day" ||
+        klineType === "week" ||
+        klineType === "month"
+      ) {
+        return dayjs(timeStr).add(1, "day").unix() - 60;
+      } else {
+        return dayjs(timeStr).unix();
+      }
     };
 
     const klineData = data.klines.map((k) => ({
-      time: formatTime(k.time),
+      time: k.time,
       open: k.open,
       high: k.high,
       low: k.low,
@@ -247,8 +258,11 @@ const ChartContainer = ({ data }) => {
         });
 
         biLineSeries.setData([
-          { time: formatTime(bi.begin_time), value: bi.begin_value },
-          { time: formatTime(bi.end_time), value: bi.end_value },
+          {
+            time: convertToUnixTimestamp(bi.begin_time),
+            value: bi.begin_value,
+          },
+          { time: convertToUnixTimestamp(bi.end_time), value: bi.end_value },
         ]);
 
         lineSeriesListRef.current.push(biLineSeries);
@@ -266,8 +280,11 @@ const ChartContainer = ({ data }) => {
         });
 
         lineSeries.setData([
-          { time: formatTime(seg.begin_time), value: seg.begin_value },
-          { time: formatTime(seg.end_time), value: seg.end_value },
+          {
+            time: convertToUnixTimestamp(seg.begin_time),
+            value: seg.begin_value,
+          },
+          { time: convertToUnixTimestamp(seg.end_time), value: seg.end_value },
         ]);
 
         lineSeriesListRef.current.push(lineSeries);
@@ -285,8 +302,8 @@ const ChartContainer = ({ data }) => {
         });
 
         zsTopLine.setData([
-          { time: formatTime(zs.begin_time), value: zs.high },
-          { time: formatTime(zs.end_time), value: zs.high },
+          { time: convertToUnixTimestamp(zs.begin_time), value: zs.high },
+          { time: convertToUnixTimestamp(zs.end_time), value: zs.high },
         ]);
 
         const zsBottomLine = mainChartRef.current.addSeries(LineSeries, {
@@ -298,8 +315,8 @@ const ChartContainer = ({ data }) => {
         });
 
         zsBottomLine.setData([
-          { time: formatTime(zs.begin_time), value: zs.low },
-          { time: formatTime(zs.end_time), value: zs.low },
+          { time: convertToUnixTimestamp(zs.begin_time), value: zs.low },
+          { time: convertToUnixTimestamp(zs.end_time), value: zs.low },
         ]);
 
         lineSeriesListRef.current.push(zsTopLine, zsBottomLine);
@@ -315,7 +332,7 @@ const ChartContainer = ({ data }) => {
       const bsMarkers = data.bs_points.map((bs) => {
         const textData = getBsPointData(bs.type, bs.is_buy);
         return {
-          time: formatTime(bs.time),
+          time: convertToUnixTimestamp(bs.time),
           position: bs.is_buy ? "belowBar" : "aboveBar",
           color: bs.is_buy ? "#ff0000ff" : "#1bb31bff",
           shape: bs.is_buy ? "arrowUp" : "arrowDown",
@@ -349,7 +366,7 @@ const ChartContainer = ({ data }) => {
       macdSeriesListRef.current = [];
 
       if (data.klines && data.klines.length >= 26) {
-        const macdData = calculateMACD(data.klines, formatTime);
+        const macdData = calculateMACD(data.klines);
 
         if (
           macdData.histogram.length > 0 &&
@@ -484,7 +501,7 @@ const ChartContainer = ({ data }) => {
     }
   };
 
-  const calculateMACD = (klines, formatTime) => {
+  const calculateMACD = (klines) => {
     try {
       if (!klines || klines.length < 26) {
         return { dif: [], dea: [], histogram: [] };
@@ -514,7 +531,7 @@ const ChartContainer = ({ data }) => {
       const startIndex = closePrices.length - macdResult.length;
 
       for (let i = 0; i < klines.length; i++) {
-        const time = formatTime(klines[i].time);
+        const time = klines[i].time;
 
         if (i < startIndex) {
           // 前面没有MACD数据的部分，用0填充

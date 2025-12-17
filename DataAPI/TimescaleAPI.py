@@ -257,21 +257,28 @@ class CTimescaleStockAPI(CCommonStockApi):
         """从数据库查询K线数据"""
         table_name = self._get_table_name()
 
-        # 构建SQL查询
-        if kltype_lt_day(self.k_type):
-            # 分钟级别数据（暂不支持）
-            logger.warning("分钟级别数据暂不支持从数据库获取")
-            return
+        is_minute = kltype_lt_day(self.k_type)
 
-        # 日线、周线、月线
-        sql = f"""
-            SELECT date, open, high, low, close, volume, amount, turn
-            FROM {table_name}
-            WHERE code = %s
-            AND date >= %s
-            AND date <= %s
-            ORDER BY date ASC
-        """
+        if is_minute:
+            # 分钟线
+            sql = f"""
+                SELECT date, time, open, high, low, close, volume, amount
+                FROM {table_name}
+                WHERE code = %s
+                AND time >= %s
+                AND time <= %s
+                ORDER BY time ASC
+            """
+        else:
+            # 日线、周线、月线
+            sql = f"""
+                SELECT date, open, high, low, close, volume, amount, turn
+                FROM {table_name}
+                WHERE code = %s
+                AND date >= %s
+                AND date <= %s
+                ORDER BY date ASC
+            """
 
         try:
             self.db_cursor.execute(sql, (self.code, self.begin_date, self.end_date))
@@ -279,26 +286,48 @@ class CTimescaleStockAPI(CCommonStockApi):
 
             logger.info(f"从数据库查询到 {len(rows)} 条 {self.code} 的数据")
 
-            # 转换为CKLine_Unit对象
-            for row in rows:
-                time_str, open_val, high_val, low_val, close_val, volume, amount, turn = row
+            if is_minute:
+                # 分钟线
+                for row in rows:
+                    date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row
 
-                # 解析时间
-                time_obj = parse_time_column(str(time_str))
+                    # 解析时间
+                    time_obj = parse_time_column(str(time_str))
 
-                # 构建数据字典
-                data_dict = {
-                    DATA_FIELD.FIELD_TIME: time_obj,
-                    DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
-                    DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
-                    DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
-                    DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
-                    DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
-                    DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
-                    DATA_FIELD.FIELD_TURNRATE: float(turn) if turn else 0.0,
-                }
+                    # 构建数据字典
+                    data_dict = {
+                        DATA_FIELD.FIELD_TIME: time_obj,
+                        DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
+                        DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
+                        DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
+                        DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
+                        DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
+                        DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
+                    }
 
-                yield CKLine_Unit(data_dict)
+                    yield CKLine_Unit(data_dict)
+
+            else:
+                # 日、周、月
+                for row in rows:
+                    time_str, open_val, high_val, low_val, close_val, volume, amount, turn = row
+
+                    # 解析时间
+                    time_obj = parse_time_column(str(time_str))           
+
+                    # 构建数据字典
+                    data_dict = {
+                        DATA_FIELD.FIELD_TIME: time_obj,
+                        DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
+                        DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
+                        DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
+                        DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
+                        DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
+                        DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
+                        DATA_FIELD.FIELD_TURNRATE: float(turn) if turn else 0.0,
+                    }
+
+                    yield CKLine_Unit(data_dict)
 
         except Exception as e:
             logger.error(f"从数据库查询数据失败: {e}")
@@ -312,6 +341,14 @@ class CTimescaleStockAPI(CCommonStockApi):
             return "stock_kline_weekly"
         elif self.k_type == KL_TYPE.K_MON:
             return "stock_kline_monthly"
+        elif self.k_type == KL_TYPE.K_5M:
+            return "stock_kline_5min"
+        elif self.k_type == KL_TYPE.K_15M:
+            return "stock_kline_15min"
+        elif self.k_type == KL_TYPE.K_30M:
+            return "stock_kline_30min"
+        elif self.k_type == KL_TYPE.K_60M:
+            return "stock_kline_60min"
         else:
             raise Exception(f"不支持的K线类型: {self.k_type}")
 
@@ -400,7 +437,10 @@ class CTimescaleStockAPI(CCommonStockApi):
             self.__class__.do_init()
 
         # 获取数据
-        fields = "date,open,high,low,close,volume,amount,turn"
+        if kltype_lt_day(self.k_type):
+            fields = "date,time,open,high,low,close,volume,amount"
+        else:
+            fields = "date,open,high,low,close,volume,amount,turn"
         autype_dict = {AUTYPE.QFQ: "2", AUTYPE.HFQ: "1", AUTYPE.NONE: "3"}
 
         try:
@@ -445,19 +485,34 @@ class CTimescaleStockAPI(CCommonStockApi):
         table_name = self._get_table_name()
 
         # 构建插入SQL（使用ON CONFLICT避免重复）
-        insert_sql = f"""
-            INSERT INTO {table_name}
-            (date, code, open, high, low, close, volume, amount, turn)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (date, code) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
-                amount = EXCLUDED.amount,
-                turn = EXCLUDED.turn
-        """
+        if kltype_lt_day(self.k_type):
+            insert_sql = f"""
+                INSERT INTO {table_name}
+                (date, time, code, open, high, low, close, volume, amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (time, code) DO UPDATE SET
+                    date = EXCLUDED.date,
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    amount = EXCLUDED.amount
+            """
+        else:
+            insert_sql = f"""
+                INSERT INTO {table_name}
+                (date, code, open, high, low, close, volume, amount, turn)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date, code) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    amount = EXCLUDED.amount,
+                    turn = EXCLUDED.turn
+            """
 
         # 辅助函数：安全转换为float
         def safe_float(val):
@@ -470,20 +525,39 @@ class CTimescaleStockAPI(CCommonStockApi):
         try:
             # 准备批量插入数据
             records = []
-            for row_data in data_list:
-                date_str, open_val, high_val, low_val, close_val, volume, amount, turn = row_data
+            if kltype_lt_day(self.k_type):
+                for row_data in data_list:
+                    date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row_data
 
-                records.append((
-                    date_str,
-                    self.code,
-                    safe_float(open_val),
-                    safe_float(high_val),
-                    safe_float(low_val),
-                    safe_float(close_val),
-                    safe_int(volume),
-                    safe_float(amount),
-                    safe_float(turn),
-                ))
+                    time_str = time_str[:14]
+                    time_str = f"{time_str[:4]}-{time_str[4:6]}-{time_str[6:8]} {time_str[8:10]}:{time_str[10:12]}:{time_str[12:14]}"
+
+                    records.append((
+                        date_str,
+                        time_str,
+                        self.code,
+                        safe_float(open_val),
+                        safe_float(high_val),
+                        safe_float(low_val),
+                        safe_float(close_val),
+                        safe_int(volume),
+                        safe_float(amount),
+                    ))
+            else:
+                for row_data in data_list:
+                    date_str, open_val, high_val, low_val, close_val, volume, amount, turn = row_data
+
+                    records.append((
+                        date_str,
+                        self.code,
+                        safe_float(open_val),
+                        safe_float(high_val),
+                        safe_float(low_val),
+                        safe_float(close_val),
+                        safe_int(volume),
+                        safe_float(amount),
+                        safe_float(turn),
+                    ))
 
             # 批量插入
             self.db_cursor.executemany(insert_sql, records)
@@ -554,5 +628,9 @@ class CTimescaleStockAPI(CCommonStockApi):
             KL_TYPE.K_DAY: 'd',
             KL_TYPE.K_WEEK: 'w',
             KL_TYPE.K_MON: 'm',
+            KL_TYPE.K_5M: '5',
+            KL_TYPE.K_15M: '15',
+            KL_TYPE.K_30M: '30',
+            KL_TYPE.K_60M: '60',
         }
         return _dict.get(self.k_type, 'd')

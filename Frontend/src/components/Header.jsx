@@ -115,6 +115,10 @@ const Header = ({ onQuery, loading }) => {
                 { value: "day", label: "日线" },
                 { value: "week", label: "周线" },
                 { value: "month", label: "月线" },
+                { value: "5m", label: "5分线" },
+                { value: "15m", label: "15分线" },
+                { value: "30m", label: "30分线" },
+                { value: "60m", label: "60分线" },
               ]}
             />
           </div>
