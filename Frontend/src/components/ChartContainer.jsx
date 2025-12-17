@@ -24,6 +24,8 @@ const ChartContainer = ({ data }) => {
   const tooltipRef = useRef(null);
   const markersDataRef = useRef([]);
   const seriesMarkersRef = useRef(null);
+  const klineDataRef = useRef([]);
+  const [klineInfo, setKlineInfo] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -123,6 +125,24 @@ const ChartContainer = ({ data }) => {
     };
 
     mainChart.subscribeCrosshairMove((param) => {
+      if (param.time && candlestickSeriesRef.current) {
+        const data = param.seriesData.get(candlestickSeriesRef.current);
+        if (data) {
+          const originalKline = klineDataRef.current.find(k => k.time === param.time);
+
+          setKlineInfo({
+            time: param.time,
+            open: data.open,
+            high: data.high,
+            low: data.low,
+            close: data.close,
+            volume: originalKline?.volume || 0,
+          });
+        }
+      } else {
+        setKlineInfo(null);
+      }
+
       if (
         !tooltipRef.current ||
         !param.time ||
@@ -179,9 +199,24 @@ const ChartContainer = ({ data }) => {
       high: k.high,
       low: k.low,
       close: k.close,
+      volume: k.volume || 0,
     }));
+    klineDataRef.current = klineData;
 
     candlestickSeriesRef.current.setData(klineData);
+
+    // 设置初始K线信息为最后一根K线
+    if (klineData.length > 0) {
+      const lastKline = klineData[klineData.length - 1];
+      setKlineInfo({
+        time: lastKline.time,
+        open: lastKline.open,
+        high: lastKline.high,
+        low: lastKline.low,
+        close: lastKline.close,
+        volume: lastKline.volume || 0,
+      });
+    }
 
     lineSeriesListRef.current.forEach((series) => {
       mainChartRef.current.removeSeries(series);
@@ -521,6 +556,36 @@ const ChartContainer = ({ data }) => {
           <div className="stock-title">
             <span className="stock-name">{data.name || "未知股票"}</span>
             <span className="stock-code">{data.code}</span>
+          </div>
+        )}
+        {klineInfo && (
+          <div className="kline-info-panel">
+            <div className="kline-info-item">
+              <span className="kline-info-label">时间</span>
+              <span className="kline-info-value">{klineInfo.time}</span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">开</span>
+              <span className="kline-info-value">{klineInfo.open.toFixed(2)}</span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">高</span>
+              <span className="kline-info-value kline-info-high">{klineInfo.high.toFixed(2)}</span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">低</span>
+              <span className="kline-info-value kline-info-low">{klineInfo.low.toFixed(2)}</span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">收</span>
+              <span className={`kline-info-value ${klineInfo.close >= klineInfo.open ? 'kline-info-up' : 'kline-info-down'}`}>
+                {klineInfo.close.toFixed(2)}
+              </span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">量</span>
+              <span className="kline-info-value">{(klineInfo.volume / 10000).toFixed(2)}万</span>
+            </div>
           </div>
         )}
         <div

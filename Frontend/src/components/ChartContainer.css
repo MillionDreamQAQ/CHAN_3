@@ -87,3 +87,56 @@
   margin-right: 8px;
   color: #999;
 }
+
+.kline-info-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.kline-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.kline-info-label {
+  color: #666;
+  font-weight: 500;
+  margin-right: 12px;
+  min-width: 40px;
+}
+
+.kline-info-value {
+  color: #1a1a1a;
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.kline-info-up {
+  color: #ef5350 !important;
+}
+
+.kline-info-down {
+  color: #26a69a !important;
+}
+
+.kline-info-high {
+  color: #ef5350;
+}
+
+.kline-info-low {
+  color: #26a69a;
+}
