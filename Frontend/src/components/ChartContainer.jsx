@@ -517,6 +517,12 @@ const ChartContainer = ({ data }) => {
         </div>
       )}
       <div className="chart-wrapper" ref={chartContainerRef}>
+        {data && (data.name || data.code) && (
+          <div className="stock-title">
+            <span className="stock-name">{data.name || "未知股票"}</span>
+            <span className="stock-code">{data.code}</span>
+          </div>
+        )}
         <div
           ref={tooltipRef}
           style={{

@@ -53,6 +53,7 @@ class ZSInfo(BaseModel):
 
 class ChanResponse(BaseModel):
     code: str
+    name: Optional[str] = Field(None, description="股票名称")
     klines: List[KLineData]
     bi_list: List[BiPoint]
     seg_list: List[SegPoint]
