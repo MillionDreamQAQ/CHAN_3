@@ -6,26 +6,22 @@ import Fuse from "fuse.js";
 import "./Header.css";
 
 const Header = ({ onQuery, loading }) => {
-  const getTodayDate = () => {
-    return dayjs().format("YYYY-MM-DD");
+  // baostock API只提供到昨天的数据
+  const getYesterdayDate = () => {
+    return dayjs().subtract(1, "day").format("YYYY-MM-DD");
   };
 
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
-    new dayjs().subtract(1, "day").subtract(3, "year").format("YYYY-MM-DD")
+    new dayjs().subtract(3, "year").format("YYYY-MM-DD")
   );
-  const [endTime, setEndTime] = useState(
-    new dayjs().subtract(1, "day").format("YYYY-MM-DD")
-  );
+  const [endTime, setEndTime] = useState(getYesterdayDate());
 
-  // 股票列表相关状态
-  const [stockList, setStockList] = useState([]);
   const [searchOptions, setSearchOptions] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
   const [fuse, setFuse] = useState(null);
 
-  // 加载股票列表
   useEffect(() => {
     const loadStocks = async () => {
       setStocksLoading(true);
@@ -35,9 +31,7 @@ const Header = ({ onQuery, loading }) => {
         );
         if (response.data.success) {
           const stocks = response.data.data;
-          setStockList(stocks);
 
-          // 初始化Fuse.js实例
           const fuseInstance = new Fuse(stocks, {
             keys: [
               { name: "code", weight: 2.5 },
@@ -71,14 +65,12 @@ const Header = ({ onQuery, loading }) => {
     });
   }, []);
 
-  // 智能搜索函数
   const handleSearch = (searchText) => {
     if (!searchText || searchText.trim().length < 1 || !fuse) {
       setSearchOptions([]);
       return;
     }
 
-    // 使用Fuse.js进行模糊搜索
     const results = fuse.search(searchText.trim()).slice(0, 20);
 
     const options = results.map(({ item }) => ({
