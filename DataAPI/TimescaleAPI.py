@@ -118,23 +118,6 @@ def parse_time_column(inp):
 
     return CTime(year, month, day, hour, minute)
 
-
-def GetColumnNameFromFieldList(fields: str):
-    """从字段列表获取列名"""
-    _dict = {
-        "time": DATA_FIELD.FIELD_TIME,
-        "date": DATA_FIELD.FIELD_TIME,
-        "open": DATA_FIELD.FIELD_OPEN,
-        "high": DATA_FIELD.FIELD_HIGH,
-        "low": DATA_FIELD.FIELD_LOW,
-        "close": DATA_FIELD.FIELD_CLOSE,
-        "volume": DATA_FIELD.FIELD_VOLUME,
-        "amount": DATA_FIELD.FIELD_TURNOVER,
-        "turn": DATA_FIELD.FIELD_TURNRATE,
-    }
-    return [_dict[x] for x in fields.split(",")]
-
-
 class CTimescaleStockAPI(CCommonStockApi):
     """
     基于TimescaleDB的股票数据API
@@ -201,6 +184,22 @@ class CTimescaleStockAPI(CCommonStockApi):
             # 关闭数据库连接
             self._close_db()
 
+    @staticmethod
+    def _get_db_connection_params() -> dict:
+        """
+        获取数据库连接参数
+
+        Returns:
+            数据库连接参数字典
+        """
+        return {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": os.getenv("DB_PORT", "5432"),
+            "user": os.getenv("DB_USER", "postgres"),
+            "password": os.getenv("DB_PASSWORD"),
+            "dbname": os.getenv("DB_NAME", "stock_db"),
+        }
+
     def _get_stock_list_date(self, code: str) -> Optional[str]:
         """
         从数据库获取股票的上市日期
@@ -212,35 +211,25 @@ class CTimescaleStockAPI(CCommonStockApi):
             上市日期字符串 YYYY-MM-DD，如果查询失败返回 None
         """
         try:
-            conn = psycopg.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("DB_PORT", "5432"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD"),
-                dbname=os.getenv("DB_NAME", "stock_db"),
-            )
-            cursor = conn.cursor()
+            with psycopg.connect(**self._get_db_connection_params()) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT list_date FROM stocks WHERE code = %s",
+                        (code,)
+                    )
+                    row = cursor.fetchone()
 
-            cursor.execute(
-                "SELECT list_date FROM stocks WHERE code = %s",
-                (code,)
-            )
-            row = cursor.fetchone()
+                    if row and row[0]:
+                        # 转换为字符串格式 YYYY-MM-DD
+                        list_date = row[0]
+                        if isinstance(list_date, str):
+                            # 如果是字符串，可能是 YYYY-MM-DD 格式
+                            return list_date.split()[0] if ' ' in list_date else list_date
+                        else:
+                            # 如果是 datetime 对象
+                            return list_date.strftime("%Y-%m-%d")
 
-            cursor.close()
-            conn.close()
-
-            if row and row[0]:
-                # 转换为字符串格式 YYYY-MM-DD
-                list_date = row[0]
-                if isinstance(list_date, str):
-                    # 如果是字符串，可能是 YYYY-MM-DD 格式
-                    return list_date.split()[0] if ' ' in list_date else list_date
-                else:
-                    # 如果是 datetime 对象
-                    return list_date.strftime("%Y-%m-%d")
-
-            return None
+                    return None
 
         except Exception as e:
             logger.warning(f"查询 {code} 上市日期失败: {e}")
@@ -249,13 +238,7 @@ class CTimescaleStockAPI(CCommonStockApi):
     def _connect_db(self):
         """连接TimescaleDB数据库"""
         try:
-            self.db_conn = psycopg.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("DB_PORT", "5432"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD"),
-                dbname=os.getenv("DB_NAME", "stock_db"),
-            )
+            self.db_conn = psycopg.connect(**self._get_db_connection_params())
             self.db_cursor = self.db_conn.cursor()
             logger.debug("数据库连接成功")
         except Exception as e:
@@ -355,13 +338,15 @@ class CTimescaleStockAPI(CCommonStockApi):
 
         # 检查开始日期之前是否有缺失
         if first_date > self.begin_date:
-            missing_ranges.append((self.begin_date, self._date_before(first_date)))
-            logger.info(f"{self.code} 缺失开始段数据: {self.begin_date} 至 {self._date_before(first_date)}")
+            end_date = self._prev_trading_day(first_date)
+            missing_ranges.append((self.begin_date, end_date))
+            logger.info(f"{self.code} 缺失开始段数据: {self.begin_date} 至 {end_date}")
 
         # 检查结束日期之后是否有缺失
         if last_date < self.end_date:
-            missing_ranges.append((self._date_after(last_date), self.end_date))
-            logger.info(f"{self.code} 缺失结束段数据: {self._date_after(last_date)} 至 {self.end_date}")
+            start_date = self._next_trading_day(last_date)
+            missing_ranges.append((start_date, self.end_date))
+            logger.info(f"{self.code} 缺失结束段数据: {start_date} 至 {self.end_date}")
 
         # TODO: 检查中间是否有日期空洞（可选，复杂度较高）
         # 对于股票数据，通常不会有中间空洞，因为都是按交易日存储的
@@ -381,14 +366,24 @@ class CTimescaleStockAPI(CCommonStockApi):
         return datetime.strptime(date_part, "%Y-%m-%d")
 
     def _date_before(self, date_str: str) -> str:
-        """返回给定日期的前一天"""
+        """返回给定日期的前一天（日历日期，不考虑交易日）"""
         date_obj = self._parse_date(date_str)
         return (date_obj - timedelta(days=1)).strftime("%Y-%m-%d")
 
     def _date_after(self, date_str: str) -> str:
-        """返回给定日期的后一天"""
+        """返回给定日期的后一天（日历日期，不考虑交易日）"""
         date_obj = self._parse_date(date_str)
         return (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    def _prev_trading_day(self, date_str: str) -> str:
+        """返回给定日期的前一个交易日"""
+        prev_date = self._date_before(date_str)
+        return adjust_to_trading_day(prev_date, direction='backward')
+
+    def _next_trading_day(self, date_str: str) -> str:
+        """返回给定日期的后一个交易日"""
+        next_date = self._date_after(date_str)
+        return adjust_to_trading_day(next_date, direction='forward')
 
     def _fetch_and_save_from_baostock(self, start_date: str, end_date: str):
         """
@@ -432,14 +427,14 @@ class CTimescaleStockAPI(CCommonStockApi):
                 return
 
             # 保存到数据库
-            self._save_to_database(data_list, fields)
+            self._save_to_database(data_list)
             logger.info(f"成功保存 {len(data_list)} 条数据到数据库")
 
         except Exception as e:
             logger.error(f"从BaoStock获取数据失败: {e}")
             raise
 
-    def _save_to_database(self, data_list: List, fields: str):
+    def _save_to_database(self, data_list: List):
         """
         保存数据到数据库
 
@@ -450,34 +445,27 @@ class CTimescaleStockAPI(CCommonStockApi):
         table_name = self._get_table_name()
 
         # 构建插入SQL（使用ON CONFLICT避免重复）
-        if self.k_type == KL_TYPE.K_DAY:
-            insert_sql = f"""
-                INSERT INTO {table_name}
-                (date, code, open, high, low, close, volume, amount, turn)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date, code) DO UPDATE SET
-                    open = EXCLUDED.open,
-                    high = EXCLUDED.high,
-                    low = EXCLUDED.low,
-                    close = EXCLUDED.close,
-                    volume = EXCLUDED.volume,
-                    amount = EXCLUDED.amount,
-                    turn = EXCLUDED.turn
-            """
-        else:  # 周线、月线
-            insert_sql = f"""
-                INSERT INTO {table_name}
-                (date, code, open, high, low, close, volume, amount, turn)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date, code) DO UPDATE SET
-                    open = EXCLUDED.open,
-                    high = EXCLUDED.high,
-                    low = EXCLUDED.low,
-                    close = EXCLUDED.close,
-                    volume = EXCLUDED.volume,
-                    amount = EXCLUDED.amount,
-                    turn = EXCLUDED.turn
-            """
+        insert_sql = f"""
+            INSERT INTO {table_name}
+            (date, code, open, high, low, close, volume, amount, turn)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (date, code) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
+                amount = EXCLUDED.amount,
+                turn = EXCLUDED.turn
+        """
+
+        # 辅助函数：安全转换为float
+        def safe_float(val):
+            return float(val) if val else None
+
+        # 辅助函数：安全转换为int（volume可能是浮点数格式的字符串）
+        def safe_int(val):
+            return int(float(val)) if val else None
 
         try:
             # 准备批量插入数据
@@ -488,13 +476,13 @@ class CTimescaleStockAPI(CCommonStockApi):
                 records.append((
                     date_str,
                     self.code,
-                    float(open_val) if open_val else None,
-                    float(high_val) if high_val else None,
-                    float(low_val) if low_val else None,
-                    float(close_val) if close_val else None,
-                    int(float(volume)) if volume else None,
-                    float(amount) if amount else None,
-                    float(turn) if turn else None,
+                    safe_float(open_val),
+                    safe_float(high_val),
+                    safe_float(low_val),
+                    safe_float(close_val),
+                    safe_int(volume),
+                    safe_float(amount),
+                    safe_float(turn),
                 ))
 
             # 批量插入
@@ -508,7 +496,7 @@ class CTimescaleStockAPI(CCommonStockApi):
             logger.error(f"保存数据到数据库失败: {e}")
             raise
 
-    def SetBasciInfo(self):
+    def SetBasicInfo(self):
         """设置股票基本信息"""
         # 可以先尝试从数据库获取
         try:
