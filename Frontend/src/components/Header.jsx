@@ -127,6 +127,7 @@ const Header = ({ onQuery, loading }) => {
               value={code}
               options={searchOptions}
               showSearch={{ onSearch: handleSearch }}
+              onClick={() => setCode(null)}
               onSelect={(value) => setCode(value)}
               onChange={(value) => setCode(value)}
               placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
