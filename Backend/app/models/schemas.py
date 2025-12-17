@@ -11,7 +11,7 @@ class ChanRequest(BaseModel):
 
 
 class KLineData(BaseModel):
-    time: float
+    time: str
     open: float
     high: float
     low: float

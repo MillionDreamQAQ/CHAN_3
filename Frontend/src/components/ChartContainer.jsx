@@ -28,6 +28,10 @@ const ChartContainer = ({ data, klineType }) => {
   const klineDataRef = useRef([]);
   const [klineInfo, setKlineInfo] = useState(null);
 
+  const convertToUnixTimestamp = (timeStr) => {
+    return dayjs(timeStr).add(8, "hour").add(1, "minute").unix() - 60;
+  };
+
   useEffect(() => {
     setLoading(true);
 
@@ -203,22 +207,8 @@ const ChartContainer = ({ data, klineType }) => {
 
     setLoading(true);
 
-    // magic method
-    // 尚不明确为什么会出现偏差，暂时先这么处理
-    const convertToUnixTimestamp = (timeStr) => {
-      if (
-        klineType === "day" ||
-        klineType === "week" ||
-        klineType === "month"
-      ) {
-        return dayjs(timeStr).add(1, "day").unix() - 60;
-      } else {
-        return dayjs(timeStr).unix();
-      }
-    };
-
     const klineData = data.klines.map((k) => ({
-      time: k.time,
+      time: convertToUnixTimestamp(k.time),
       open: k.open,
       high: k.high,
       low: k.low,
@@ -531,7 +521,7 @@ const ChartContainer = ({ data, klineType }) => {
       const startIndex = closePrices.length - macdResult.length;
 
       for (let i = 0; i < klines.length; i++) {
-        const time = klines[i].time;
+        const time = convertToUnixTimestamp(klines[i].time);
 
         if (i < startIndex) {
           // 前面没有MACD数据的部分，用0填充
@@ -590,10 +580,6 @@ const ChartContainer = ({ data, klineType }) => {
         )}
         {klineInfo && (
           <div className="kline-info-panel">
-            <div className="kline-info-item">
-              <span className="kline-info-label">时间</span>
-              <span className="kline-info-value">{klineInfo.time}</span>
-            </div>
             <div className="kline-info-item">
               <span className="kline-info-label">开</span>
               <span className="kline-info-value">

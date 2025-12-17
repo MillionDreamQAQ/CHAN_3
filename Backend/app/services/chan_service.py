@@ -144,7 +144,7 @@ class ChanService:
 
                 klines.append(
                     KLineData(
-                        time=klu.time.ts,
+                        time=str(klu.time),
                         open=klu.open,
                         high=klu.high,
                         low=klu.low,
