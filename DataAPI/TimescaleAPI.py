@@ -23,13 +23,24 @@ def is_trading_day(date_obj: datetime) -> bool:
     """
     判断是否为交易日
     排除周末和法定节假日
+
+    Note: chinese_calendar 仅支持 2004-2026 年，超出范围只判断周末
     """
     # 周六周日不是交易日
     if date_obj.weekday() >= 5:
         return False
 
-    # 使用chinese_calendar判断是否为节假日
-    return calendar.is_workday(date_obj.date())
+    # chinese_calendar 仅支持 2004-2026 年
+    year = date_obj.year
+    if 2004 <= year <= 2026:
+        try:
+            return calendar.is_workday(date_obj.date())
+        except Exception:
+            # 如果查询失败，认为是交易日（仅排除周末）
+            return True
+    else:
+        # 超出范围，只能判断周末，周一到周五认为是交易日
+        return True
 
 
 def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
@@ -42,8 +53,14 @@ def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
 
     Returns:
         调整后的日期字符串 YYYY-MM-DD
+
+    Note: chinese_calendar 仅支持 2004-2026 年，超出范围只排除周末
     """
     date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+
+    # 检查年份范围，给出提示
+    if date_obj.year < 2004 or date_obj.year > 2026:
+        logger.info(f"日期 {date_str} 超出节假日数据范围(2004-2026)，仅排除周末")
 
     # 如果已经是交易日，直接返回
     if is_trading_day(date_obj):
@@ -130,9 +147,20 @@ class CTimescaleStockAPI(CCommonStockApi):
         self.db_conn = None
         self.db_cursor = None
 
-        # 智能调整日期到交易日
+        # 1. 先查询股票的上市日期
+        stock_list_date = self._get_stock_list_date(code)
+
+        # 2. 调整开始日期
         if begin_date:
-            begin_date = adjust_to_trading_day(begin_date, direction='backward')
+            # 如果开始日期早于上市日期，使用上市日期
+            if stock_list_date and begin_date < stock_list_date:
+                logger.info(f"{code} 上市日期为 {stock_list_date}，调整开始日期 {begin_date} → {stock_list_date}")
+                begin_date = stock_list_date
+
+            # 调整到交易日
+            begin_date = adjust_to_trading_day(begin_date, direction='forward')
+
+        # 3. 调整结束日期到交易日
         if end_date:
             end_date = adjust_to_trading_day(end_date, direction='backward')
 
@@ -172,6 +200,51 @@ class CTimescaleStockAPI(CCommonStockApi):
         finally:
             # 关闭数据库连接
             self._close_db()
+
+    def _get_stock_list_date(self, code: str) -> Optional[str]:
+        """
+        从数据库获取股票的上市日期
+
+        Args:
+            code: 股票代码
+
+        Returns:
+            上市日期字符串 YYYY-MM-DD，如果查询失败返回 None
+        """
+        try:
+            conn = psycopg.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD"),
+                dbname=os.getenv("DB_NAME", "stock_db"),
+            )
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT list_date FROM stocks WHERE code = %s",
+                (code,)
+            )
+            row = cursor.fetchone()
+
+            cursor.close()
+            conn.close()
+
+            if row and row[0]:
+                # 转换为字符串格式 YYYY-MM-DD
+                list_date = row[0]
+                if isinstance(list_date, str):
+                    # 如果是字符串，可能是 YYYY-MM-DD 格式
+                    return list_date.split()[0] if ' ' in list_date else list_date
+                else:
+                    # 如果是 datetime 对象
+                    return list_date.strftime("%Y-%m-%d")
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"查询 {code} 上市日期失败: {e}")
+            return None
 
     def _connect_db(self):
         """连接TimescaleDB数据库"""
