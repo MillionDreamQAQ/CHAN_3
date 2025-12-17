@@ -128,7 +128,9 @@ const ChartContainer = ({ data }) => {
       if (param.time && candlestickSeriesRef.current) {
         const data = param.seriesData.get(candlestickSeriesRef.current);
         if (data) {
-          const originalKline = klineDataRef.current.find(k => k.time === param.time);
+          const originalKline = klineDataRef.current.find(
+            (k) => k.time === param.time
+          );
 
           setKlineInfo({
             time: param.time,
@@ -140,7 +142,18 @@ const ChartContainer = ({ data }) => {
           });
         }
       } else {
-        setKlineInfo(null);
+        if (klineDataRef.current.length > 0) {
+          const lastKline =
+            klineDataRef.current[klineDataRef.current.length - 1];
+          setKlineInfo({
+            time: lastKline.time,
+            open: lastKline.open,
+            high: lastKline.high,
+            low: lastKline.low,
+            close: lastKline.close,
+            volume: lastKline.volume || 0,
+          });
+        }
       }
 
       if (
@@ -566,25 +579,41 @@ const ChartContainer = ({ data }) => {
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">开</span>
-              <span className="kline-info-value">{klineInfo.open.toFixed(2)}</span>
+              <span className="kline-info-value">
+                {klineInfo.open.toFixed(2)}
+              </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">高</span>
-              <span className="kline-info-value kline-info-high">{klineInfo.high.toFixed(2)}</span>
+              <span className="kline-info-value kline-info-high">
+                {klineInfo.high.toFixed(2)}
+              </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">低</span>
-              <span className="kline-info-value kline-info-low">{klineInfo.low.toFixed(2)}</span>
+              <span className="kline-info-value kline-info-low">
+                {klineInfo.low.toFixed(2)}
+              </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">收</span>
-              <span className={`kline-info-value ${klineInfo.close >= klineInfo.open ? 'kline-info-up' : 'kline-info-down'}`}>
+              <span
+                className={`kline-info-value ${
+                  klineInfo.close >= klineInfo.open
+                    ? "kline-info-up"
+                    : "kline-info-down"
+                }`}
+              >
                 {klineInfo.close.toFixed(2)}
               </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">量</span>
-              <span className="kline-info-value">{(klineInfo.volume / 10000).toFixed(2)}万</span>
+              <span className="kline-info-value">
+                {klineInfo.volume >= 100000000
+                  ? `${(klineInfo.volume / 100000000).toFixed(2)}亿`
+                  : `${(klineInfo.volume / 10000).toFixed(2)}万`}
+              </span>
             </div>
           </div>
         )}

@@ -102,21 +102,22 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 200px;
+  min-width: 160px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
 }
 
 .kline-info-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .kline-info-label {
   color: #666;
   font-weight: 500;
   margin-right: 12px;
-  min-width: 40px;
+  min-width: 24px;
 }
 
 .kline-info-value {
