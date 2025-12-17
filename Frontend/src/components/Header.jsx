@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { Input, DatePicker, Button, Select } from "antd";
+import { AutoComplete, DatePicker, Button, Select, Spin } from "antd";
 import dayjs from "dayjs";
+import axios from "axios";
+import Fuse from "fuse.js";
 import "./Header.css";
 
 const Header = ({ onQuery, loading }) => {
@@ -15,6 +17,49 @@ const Header = ({ onQuery, loading }) => {
   );
   const [endTime, setEndTime] = useState(getTodayDate());
 
+  // 股票列表相关状态
+  const [stockList, setStockList] = useState([]);
+  const [searchOptions, setSearchOptions] = useState([]);
+  const [stocksLoading, setStocksLoading] = useState(false);
+  const [fuse, setFuse] = useState(null);
+
+  // 加载股票列表
+  useEffect(() => {
+    const loadStocks = async () => {
+      setStocksLoading(true);
+      try {
+        const response = await axios.get(
+          "http://localhost:8000/api/stocks/list"
+        );
+        if (response.data.success) {
+          const stocks = response.data.data;
+          setStockList(stocks);
+
+          // 初始化Fuse.js实例
+          const fuseInstance = new Fuse(stocks, {
+            keys: [
+              { name: "code", weight: 2.5 },
+              { name: "name", weight: 2.0 },
+              { name: "pinyin", weight: 1.0 },
+              { name: "pinyin_short", weight: 1.5 },
+            ],
+            threshold: 0.3,
+            includeScore: true,
+            ignoreLocation: true,
+            minMatchCharLength: 1,
+          });
+          setFuse(fuseInstance);
+        }
+      } catch (error) {
+        console.error("加载股票列表失败:", error);
+      } finally {
+        setStocksLoading(false);
+      }
+    };
+
+    loadStocks();
+  }, []);
+
   useEffect(() => {
     onQuery({
       code,
@@ -23,6 +68,35 @@ const Header = ({ onQuery, loading }) => {
       end_time: endTime,
     });
   }, []);
+
+  // 智能搜索函数
+  const handleSearch = (searchText) => {
+    if (!searchText || searchText.trim().length < 1 || !fuse) {
+      setSearchOptions([]);
+      return;
+    }
+
+    // 使用Fuse.js进行模糊搜索
+    const results = fuse.search(searchText.trim()).slice(0, 20);
+
+    const options = results.map(({ item }) => ({
+      value: item.code,
+      label: (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "4px 0",
+          }}
+        >
+          <span style={{ fontWeight: 500 }}>{item.name}</span>
+          <span style={{ color: "#999", fontSize: "12px" }}>{item.code}</span>
+        </div>
+      ),
+    }));
+
+    setSearchOptions(options);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -51,15 +125,19 @@ const Header = ({ onQuery, loading }) => {
             />
           </div>
           <div className="form-group">
-            <Input
+            <AutoComplete
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="如: sz.000001"
-              style={{
-                border: "1px solid #d9d9d9",
-                borderRadius: "6px",
-                width: "100px",
-              }}
+              options={searchOptions}
+              showSearch={
+                { onSearch: handleSearch }
+              }
+              onSelect={(value) => setCode(value)}
+              onChange={(value) => setCode(value)}
+              placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
+              style={{ width: "160px", height: "32px" }}
+              notFoundContent={
+                stocksLoading ? <Spin size="small" /> : "无匹配结果"
+              }
             />
           </div>
           <div className="form-group">
