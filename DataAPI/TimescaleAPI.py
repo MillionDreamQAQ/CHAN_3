@@ -155,12 +155,12 @@ class CTimescaleStockAPI(CCommonStockApi):
 
         # 日线、周线、月线
         sql = f"""
-            SELECT time, open, high, low, close, volume, amount, turn
+            SELECT date, open, high, low, close, volume, amount, turn
             FROM {table_name}
             WHERE code = %s
-            AND time >= %s
-            AND time <= %s
-            ORDER BY time ASC
+            AND date >= %s
+            AND date <= %s
+            ORDER BY date ASC
         """
 
         try:
@@ -326,9 +326,9 @@ class CTimescaleStockAPI(CCommonStockApi):
         if self.k_type == KL_TYPE.K_DAY:
             insert_sql = f"""
                 INSERT INTO {table_name}
-                (time, code, open, high, low, close, volume, amount, turn)
+                (date, code, open, high, low, close, volume, amount, turn)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (time, code) DO UPDATE SET
+                ON CONFLICT (date, code) DO UPDATE SET
                     open = EXCLUDED.open,
                     high = EXCLUDED.high,
                     low = EXCLUDED.low,
@@ -340,9 +340,9 @@ class CTimescaleStockAPI(CCommonStockApi):
         else:  # 周线、月线
             insert_sql = f"""
                 INSERT INTO {table_name}
-                (time, code, open, high, low, close, volume, amount, turn)
+                (date, code, open, high, low, close, volume, amount, turn)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (time, code) DO UPDATE SET
+                ON CONFLICT (date, code) DO UPDATE SET
                     open = EXCLUDED.open,
                     high = EXCLUDED.high,
                     low = EXCLUDED.low,

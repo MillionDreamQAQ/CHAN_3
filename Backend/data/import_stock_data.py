@@ -135,9 +135,9 @@ class StockDataImporter:
         try:
             insert_sql = f"""
                     INSERT INTO {table_name}
-                    (time, code, open, high, low, close, volume, amount, turn)
+                    (date, code, open, high, low, close, volume, amount, turn)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (time, code) DO NOTHING
+                    ON CONFLICT (date, code) DO NOTHING
                 """
             # 准备数据
             records = []
