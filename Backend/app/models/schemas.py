@@ -3,6 +3,7 @@ from typing import List, Optional
 
 class ChanRequest(BaseModel):
     code: str = Field(..., description="股票代码，例如 sz.000001")
+    kline_type: Optional[str] = Field("day", description="K线级别，day=日线，week=周线，month=月线")
     begin_time: str = Field(..., description="开始时间，格式 YYYY-MM-DD")
     end_time: Optional[str] = Field(
         None, description="结束时间，格式 YYYY-MM-DD，不传则为当前时间"

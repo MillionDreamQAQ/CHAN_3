@@ -57,6 +57,14 @@ class ChanService:
 
     @staticmethod
     def calculate_chan(request: ChanRequest) -> ChanResponse:
+        # K线级别映射
+        kline_type_map = {
+            "day": KL_TYPE.K_DAY,
+            "week": KL_TYPE.K_WEEK,
+            "month": KL_TYPE.K_MON,
+        }
+        kl_type = kline_type_map.get(request.kline_type or "day", KL_TYPE.K_DAY)
+
         # 创建Chan配置
         config = CChanConfig(
             {
@@ -81,7 +89,7 @@ class ChanService:
             begin_time=request.begin_time,
             end_time=request.end_time,
             data_src=DATA_SRC.TIMESCALE,
-            lv_list=[KL_TYPE.K_DAY],
+            lv_list=[kl_type],
             config=config,
             autype=AUTYPE.QFQ,
         )
