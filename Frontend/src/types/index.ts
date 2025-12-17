@@ -43,6 +43,7 @@ export interface ZSInfo {
 
 export interface ChanResponse {
   code: string;
+  name?: string;
   klines: KLineData[];
   bi_list: BiPoint[];
   seg_list: SegPoint[];
@@ -53,6 +54,7 @@ export interface ChanResponse {
 
 export interface ChanRequest {
   code: string;
+  kline_type?: string;
   begin_time: string;
   end_time?: string;
 }

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.chan_api import router as chan_router
+from app.api.stock_api import router as stock_router
 
 app = FastAPI(
     title="缠论分析API", description="基于chan.py的缠论分析后端API", version="1.0.0"
@@ -17,6 +18,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(chan_router)
+app.include_router(stock_router)
 
 
 @app.get("/")

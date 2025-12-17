@@ -11,6 +11,7 @@ function App() {
   const [error, setError] = useState(null);
 
   const handleQuery = async (request) => {
+    message.info("正在查询，请稍候...");
     setLoading(true);
     setError(null);
 

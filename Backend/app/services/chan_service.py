@@ -1,5 +1,7 @@
 import sys
 import os
+import psycopg
+from dotenv import load_dotenv
 
 # 添加父目录到路径，以便导入Chan模块
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
@@ -16,12 +18,53 @@ from app.models.schemas import (
     BSPoint,
     ZSInfo,
 )
-from typing import List
+from typing import List, Optional
+
+# 加载环境变量
+load_dotenv()
 
 
 class ChanService:
     @staticmethod
+    def get_stock_name(code: str) -> Optional[str]:
+        """
+        从数据库获取股票名称
+
+        Args:
+            code: 股票代码
+
+        Returns:
+            股票名称，如果未找到则返回 None
+        """
+        try:
+            conn = psycopg.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD"),
+                dbname=os.getenv("DB_NAME", "stock_db"),
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM stocks WHERE code = %s", (code,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            return row[0] if row else None
+        except Exception as e:
+            print(f"获取股票名称失败: {e}")
+            return None
+
+    @staticmethod
     def calculate_chan(request: ChanRequest) -> ChanResponse:
+        # K线级别映射
+        kline_type_map = {
+            "day": KL_TYPE.K_DAY,
+            "week": KL_TYPE.K_WEEK,
+            "month": KL_TYPE.K_MON,
+        }
+        kl_type = kline_type_map.get(request.kline_type or "day", KL_TYPE.K_DAY)
+
         # 创建Chan配置
         config = CChanConfig(
             {
@@ -45,8 +88,8 @@ class ChanService:
             code=request.code,
             begin_time=request.begin_time,
             end_time=request.end_time,
-            data_src=DATA_SRC.BAO_STOCK,
-            lv_list=[KL_TYPE.K_DAY],
+            data_src=DATA_SRC.TIMESCALE,
+            lv_list=[kl_type],
             config=config,
             autype=AUTYPE.QFQ,
         )
@@ -69,8 +112,12 @@ class ChanService:
         # 获取中枢买卖点
         cbsp_list = ChanService._extract_cbsp_list(chan)
 
+        # 获取股票名称
+        stock_name = ChanService.get_stock_name(request.code)
+
         return ChanResponse(
             code=request.code,
+            name=stock_name,
             klines=klines,
             bi_list=bi_list,
             seg_list=seg_list,
