@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional
 from dotenv import load_dotenv
 
 import baostock as bs
+import chinese_calendar as calendar
 from Common.CEnum import AUTYPE, DATA_FIELD, KL_TYPE
 from Common.CTime import CTime
 from Common.func_util import kltype_lt_day, str2float
@@ -16,6 +17,52 @@ from .CommonStockAPI import CCommonStockApi
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def is_trading_day(date_obj: datetime) -> bool:
+    """
+    判断是否为交易日
+    排除周末和法定节假日
+    """
+    # 周六周日不是交易日
+    if date_obj.weekday() >= 5:
+        return False
+
+    # 使用chinese_calendar判断是否为节假日
+    return calendar.is_workday(date_obj.date())
+
+
+def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
+    """
+    调整日期到最近的交易日
+
+    Args:
+        date_str: 日期字符串 YYYY-MM-DD
+        direction: 'backward' 向前找(找更早的日期), 'forward' 向后找(找更晚的日期)
+
+    Returns:
+        调整后的日期字符串 YYYY-MM-DD
+    """
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+
+    # 如果已经是交易日，直接返回
+    if is_trading_day(date_obj):
+        return date_str
+
+    # 最多尝试30天
+    max_attempts = 30
+    delta = timedelta(days=-1 if direction == 'backward' else 1)
+
+    for _ in range(max_attempts):
+        date_obj += delta
+        if is_trading_day(date_obj):
+            adjusted_date = date_obj.strftime("%Y-%m-%d")
+            logger.info(f"日期 {date_str} 不是交易日，自动调整为 {adjusted_date}")
+            return adjusted_date
+
+    # 如果30天内找不到交易日（几乎不可能），返回原日期
+    logger.warning(f"无法为 {date_str} 找到最近的交易日，返回原日期")
+    return date_str
 
 
 def create_item_dict(data, column_name):
@@ -82,6 +129,13 @@ class CTimescaleStockAPI(CCommonStockApi):
     def __init__(self, code, k_type=KL_TYPE.K_DAY, begin_date=None, end_date=None, autype=AUTYPE.QFQ):
         self.db_conn = None
         self.db_cursor = None
+
+        # 智能调整日期到交易日
+        if begin_date:
+            begin_date = adjust_to_trading_day(begin_date, direction='backward')
+        if end_date:
+            end_date = adjust_to_trading_day(end_date, direction='backward')
+
         super(CTimescaleStockAPI, self).__init__(code, k_type, begin_date, end_date, autype)
 
     def get_kl_data(self):
