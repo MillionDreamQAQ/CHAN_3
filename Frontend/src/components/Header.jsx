@@ -13,9 +13,11 @@ const Header = ({ onQuery, loading }) => {
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
-    new dayjs().subtract(3, "year").format("YYYY-MM-DD")
+    new dayjs().subtract(1, "day").subtract(3, "year").format("YYYY-MM-DD")
   );
-  const [endTime, setEndTime] = useState(getTodayDate());
+  const [endTime, setEndTime] = useState(
+    new dayjs().subtract(1, "day").format("YYYY-MM-DD")
+  );
 
   // 股票列表相关状态
   const [stockList, setStockList] = useState([]);
@@ -128,9 +130,7 @@ const Header = ({ onQuery, loading }) => {
             <AutoComplete
               value={code}
               options={searchOptions}
-              showSearch={
-                { onSearch: handleSearch }
-              }
+              showSearch={{ onSearch: handleSearch }}
               onSelect={(value) => setCode(value)}
               onChange={(value) => setCode(value)}
               placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
