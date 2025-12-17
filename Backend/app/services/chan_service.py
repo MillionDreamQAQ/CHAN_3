@@ -45,7 +45,7 @@ class ChanService:
             code=request.code,
             begin_time=request.begin_time,
             end_time=request.end_time,
-            data_src=DATA_SRC.BAO_STOCK,
+            data_src=DATA_SRC.TIMESCALE,
             lv_list=[KL_TYPE.K_DAY],
             config=config,
             autype=AUTYPE.QFQ,
