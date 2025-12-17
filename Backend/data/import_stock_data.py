@@ -63,13 +63,7 @@ class StockDataImporter:
         )
 
         try:
-            # 日K线包含 preclose，周K和月K不包含
-            if frequency == "d":
-                fields = (
-                    "date,code,open,high,low,close,preclose,volume,amount,turn,pctChg"
-                )
-            else:
-                fields = "date,code,open,high,low,close,volume,amount,turn,pctChg"
+            fields = "date,code,open,high,low,close,volume,amount,turn"
 
             rs = bs.query_history_k_data_plus(
                 code,
@@ -102,11 +96,9 @@ class StockDataImporter:
                 "high",
                 "low",
                 "close",
-                "preclose",
                 "volume",
                 "amount",
                 "turn",
-                "pctChg",
             ]
             for col in numeric_columns:
                 if col in df.columns:
@@ -141,22 +133,12 @@ class StockDataImporter:
             return False
 
         try:
-            # 日K线包含 preclose，周K和月K不包含
-            if frequency == "d":
-                insert_sql = f"""
+            insert_sql = f"""
                     INSERT INTO {table_name}
-                    (time, code, open, high, low, close, preclose, volume, amount, turn, pct_chg)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (time, code, open, high, low, close, volume, amount, turn)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (time, code) DO NOTHING
                 """
-            else:
-                insert_sql = f"""
-                    INSERT INTO {table_name}
-                    (time, code, open, high, low, close, volume, amount, turn, pct_chg)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (time, code) DO NOTHING
-                """
-
             # 准备数据
             records = []
             for _, row in df.iterrows():
@@ -169,15 +151,9 @@ class StockDataImporter:
                             float(row["high"]) if pd.notna(row["high"]) else None,
                             float(row["low"]) if pd.notna(row["low"]) else None,
                             float(row["close"]) if pd.notna(row["close"]) else None,
-                            (
-                                float(row["preclose"])
-                                if pd.notna(row["preclose"])
-                                else None
-                            ),
                             int(row["volume"]) if pd.notna(row["volume"]) else None,
                             float(row["amount"]) if pd.notna(row["amount"]) else None,
                             float(row["turn"]) if pd.notna(row["turn"]) else None,
-                            float(row["pctChg"]) if pd.notna(row["pctChg"]) else None,
                         )
                     )
                 else:
@@ -192,7 +168,6 @@ class StockDataImporter:
                             int(row["volume"]) if pd.notna(row["volume"]) else None,
                             float(row["amount"]) if pd.notna(row["amount"]) else None,
                             float(row["turn"]) if pd.notna(row["turn"]) else None,
-                            float(row["pctChg"]) if pd.notna(row["pctChg"]) else None,
                         )
                     )
 
