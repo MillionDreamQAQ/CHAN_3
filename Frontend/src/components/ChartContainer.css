@@ -149,17 +149,17 @@ body.dark-mode .kline-info-panel {
 }
 
 .kline-info-up {
-  color: #ef5350 !important;
+  color: #eb3532 !important;
 }
 
 .kline-info-down {
-  color: #26a69a !important;
+  color: #1dc36a !important;
 }
 
 .kline-info-high {
-  color: #ef5350;
+  color: #eb3532;
 }
 
 .kline-info-low {
-  color: #26a69a;
+  color: #1dc36a;
 }

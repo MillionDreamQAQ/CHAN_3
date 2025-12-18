@@ -15,8 +15,8 @@ import {
 } from "../utils/utils";
 
 const COLORS = {
-  upColor: "#ef5350",
-  downColor: "#26a69a",
+  upColor: "#eb3532ff",
+  downColor: "#1dc36aff",
   biLine: "#0048ffff",
   segLine: "#ff0000ff",
   zsLine: "#ffb700ff",
@@ -226,9 +226,12 @@ const ChartContainer = ({ data, darkMode = false }) => {
       if (param.time && seriesRefs.current.candlestick) {
         const data = param.seriesData.get(seriesRefs.current.candlestick);
         if (data) {
-          const originalKline = dataRefs.current.kline.find(
+          const currentIndex = dataRefs.current.kline.findIndex(
             (k) => k.time === param.time
           );
+          const originalKline = dataRefs.current.kline[currentIndex];
+          const prevKline =
+            currentIndex > 0 ? dataRefs.current.kline[currentIndex - 1] : null;
 
           setKlineInfo({
             time: param.time,
@@ -237,12 +240,15 @@ const ChartContainer = ({ data, darkMode = false }) => {
             low: data.low,
             close: data.close,
             volume: originalKline?.volume || 0,
+            prevClose: prevKline?.close || data.open,
           });
         }
       } else {
         if (dataRefs.current.kline.length > 0) {
-          const lastKline =
-            dataRefs.current.kline[dataRefs.current.kline.length - 1];
+          const lastIndex = dataRefs.current.kline.length - 1;
+          const lastKline = dataRefs.current.kline[lastIndex];
+          const prevKline =
+            lastIndex > 0 ? dataRefs.current.kline[lastIndex - 1] : null;
           setKlineInfo({
             time: lastKline.time,
             open: lastKline.open,
@@ -250,6 +256,7 @@ const ChartContainer = ({ data, darkMode = false }) => {
             low: lastKline.low,
             close: lastKline.close,
             volume: lastKline.volume || 0,
+            prevClose: prevKline?.close || lastKline.open,
           });
         }
       }
@@ -343,7 +350,9 @@ const ChartContainer = ({ data, darkMode = false }) => {
     seriesRefs.current.candlestick.setData(klineData);
 
     if (klineData.length > 0) {
-      const lastKline = klineData[klineData.length - 1];
+      const lastIndex = klineData.length - 1;
+      const lastKline = klineData[lastIndex];
+      const prevKline = lastIndex > 0 ? klineData[lastIndex - 1] : null;
       setKlineInfo({
         time: lastKline.time,
         open: lastKline.open,
@@ -351,6 +360,7 @@ const ChartContainer = ({ data, darkMode = false }) => {
         low: lastKline.low,
         close: lastKline.close,
         volume: lastKline.volume || 0,
+        prevClose: prevKline?.close || lastKline.open,
       });
     }
 
@@ -657,12 +667,29 @@ const ChartContainer = ({ data, darkMode = false }) => {
               <span className="kline-info-label">收</span>
               <span
                 className={`kline-info-value ${
-                  klineInfo.close >= klineInfo.open
+                  klineInfo.close >= klineInfo.prevClose
                     ? "kline-info-up"
                     : "kline-info-down"
                 }`}
               >
                 {klineInfo.close.toFixed(FORMAT_CONFIG.priceDecimal)}
+              </span>
+            </div>
+            <div className="kline-info-item">
+              <span className="kline-info-label">幅</span>
+              <span
+                className={`kline-info-value ${
+                  klineInfo.close >= klineInfo.prevClose
+                    ? "kline-info-up"
+                    : "kline-info-down"
+                }`}
+              >
+                {(
+                  ((klineInfo.close - klineInfo.prevClose) /
+                    klineInfo.prevClose) *
+                  100
+                ).toFixed(2)}
+                %
               </span>
             </div>
             <div className="kline-info-item">
