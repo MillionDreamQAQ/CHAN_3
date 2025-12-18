@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AutoComplete, DatePicker, Button, Select, Spin } from "antd";
+import { AutoComplete, DatePicker, Button, Select, Spin, message } from "antd";
 import dayjs from "dayjs";
 import axios from "axios";
 import Fuse from "fuse.js";
@@ -94,6 +94,14 @@ const Header = ({ onQuery, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!code) {
+      message.warning("请输入股票代码");
+      return;
+    }
+    if (!beginTime) {
+      message.warning("请选择开始时间");
+      return;
+    }
     onQuery({
       code,
       kline_type: klineType,
