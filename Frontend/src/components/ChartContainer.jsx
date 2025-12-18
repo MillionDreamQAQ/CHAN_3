@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -10,6 +10,92 @@ import { MACD } from "technicalindicators";
 import "./ChartContainer.css";
 import { getBsPointData } from "../utils/utils";
 import dayjs from "dayjs";
+
+// 颜色配置常量
+const COLORS = {
+  upColor: "#ef5350",
+  downColor: "#26a69a",
+  biLine: "#3300ffff",
+  segLine: "#ff0000ff",
+  zsLine: "#000000ff",
+  difLine: "#2962FF",
+  deaLine: "#FF6D00",
+  zeroLine: "#787B86",
+  buyMarker: "#ff0000ff",
+  sellMarker: "#1bb31bff",
+};
+
+// 通用图表配置
+const getChartConfig = (width, height, showTimeVisible = true) => ({
+  width,
+  height,
+  layout: {
+    background: { color: "#ffffff" },
+    textColor: "#333",
+  },
+  grid: {
+    vertLines: { color: "#f0f0f0" },
+    horzLines: { color: "#f0f0f0" },
+  },
+  crosshair: {
+    mode: 1,
+  },
+  rightPriceScale: {
+    borderColor: "#d1d4dc",
+  },
+  timeScale: {
+    borderColor: "#d1d4dc",
+    timeVisible: showTimeVisible,
+    secondsVisible: false,
+  },
+  localization: {
+    dateFormat: "yyyy-MM-dd",
+  },
+});
+
+// LineSeries 配置模板
+const LINE_SERIES_CONFIGS = {
+  bi: {
+    color: COLORS.biLine,
+    lineWidth: 1,
+    lineStyle: 0,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  seg: {
+    color: COLORS.segLine,
+    lineWidth: 2,
+    lineStyle: 0,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  zs: {
+    color: COLORS.zsLine,
+    lineWidth: 2,
+    lineStyle: 0,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  dif: {
+    color: COLORS.difLine,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  dea: {
+    color: COLORS.deaLine,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  zero: {
+    color: COLORS.zeroLine,
+    lineWidth: 1,
+    lineStyle: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+};
 
 const ChartContainer = ({ data }) => {
   const [loading, setLoading] = useState(true);
@@ -32,6 +118,21 @@ const ChartContainer = ({ data }) => {
     return dayjs(timeStr).add(8, "hour").add(1, "minute").unix() - 60;
   };
 
+  // 通用的添加线段系列函数
+  const addLineSegments = (chart, dataList, config, convertTime, getDataPoints) => {
+    const seriesList = [];
+
+    if (dataList && dataList.length > 0) {
+      dataList.forEach((item) => {
+        const lineSeries = chart.addSeries(LineSeries, config);
+        lineSeries.setData(getDataPoints(item, convertTime));
+        seriesList.push(lineSeries);
+      });
+    }
+
+    return seriesList;
+  };
+
   useEffect(() => {
     setLoading(true);
 
@@ -41,68 +142,26 @@ const ChartContainer = ({ data }) => {
       chartContainerRef.current.parentElement?.clientWidth ||
       chartContainerRef.current.clientWidth;
 
-    const mainChart = createChart(chartContainerRef.current, {
-      width: containerWidth,
-      height: chartContainerRef.current.clientHeight || 400,
-      layout: {
-        background: { color: "#ffffff" },
-        textColor: "#333",
-      },
-      grid: {
-        vertLines: { color: "#f0f0f0" },
-        horzLines: { color: "#f0f0f0" },
-      },
-      crosshair: {
-        mode: 1,
-      },
-      rightPriceScale: {
-        borderColor: "#d1d4dc",
-      },
-      timeScale: {
-        borderColor: "#d1d4dc",
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      localization: {
-        dateFormat: "yyyy-MM-dd",
-      },
-    });
+    // 使用通用配置创建主图表
+    const mainChart = createChart(
+      chartContainerRef.current,
+      getChartConfig(containerWidth, chartContainerRef.current.clientHeight || 400, true)
+    );
     mainChartRef.current = mainChart;
 
-    const macdChart = createChart(macdContainerRef.current, {
-      width: containerWidth,
-      height: macdContainerRef.current.clientHeight || 150,
-      layout: {
-        background: { color: "#ffffff" },
-        textColor: "#333",
-      },
-      grid: {
-        vertLines: { color: "#f0f0f0" },
-        horzLines: { color: "#f0f0f0" },
-      },
-      crosshair: {
-        mode: 1,
-      },
-      rightPriceScale: {
-        borderColor: "#d1d4dc",
-      },
-      timeScale: {
-        borderColor: "#d1d4dc",
-        timeVisible: false,
-        secondsVisible: false,
-      },
-      localization: {
-        dateFormat: "yyyy-MM-dd",
-      },
-    });
+    // 使用通用配置创建MACD图表
+    const macdChart = createChart(
+      macdContainerRef.current,
+      getChartConfig(containerWidth, macdContainerRef.current.clientHeight || 150, false)
+    );
     macdChartRef.current = macdChart;
 
     const candlestickSeries = mainChart.addSeries(CandlestickSeries, {
-      upColor: "#ef5350",
-      downColor: "#26a69a",
+      upColor: COLORS.upColor,
+      downColor: COLORS.downColor,
       borderVisible: false,
-      wickUpColor: "#ef5350",
-      wickDownColor: "#26a69a",
+      wickUpColor: COLORS.upColor,
+      wickDownColor: COLORS.downColor,
     });
     candlestickSeriesRef.current = candlestickSeries;
 
@@ -202,12 +261,10 @@ const ChartContainer = ({ data }) => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!data || !candlestickSeriesRef.current) return;
-
-    setLoading(true);
-
-    const klineData = data.klines.map((k) => ({
+  // 使用 useMemo 缓存转换后的 kline 数据，避免重复转换
+  const klineData = useMemo(() => {
+    if (!data?.klines) return [];
+    return data.klines.map((k) => ({
       time: convertToUnixTimestamp(k.time),
       open: k.open,
       high: k.high,
@@ -215,6 +272,13 @@ const ChartContainer = ({ data }) => {
       close: k.close,
       volume: k.volume || 0,
     }));
+  }, [data?.klines]);
+
+  useEffect(() => {
+    if (!data || !candlestickSeriesRef.current) return;
+
+    setLoading(true);
+
     klineDataRef.current = klineData;
 
     candlestickSeriesRef.current.setData(klineData);
@@ -232,85 +296,69 @@ const ChartContainer = ({ data }) => {
       });
     }
 
+    // 清除之前的线段系列
     lineSeriesListRef.current.forEach((series) => {
       mainChartRef.current.removeSeries(series);
     });
     lineSeriesListRef.current = [];
 
-    if (data.bi_list && data.bi_list.length > 0 && mainChartRef.current) {
-      data.bi_list.forEach((bi) => {
-        const biLineSeries = mainChartRef.current.addSeries(LineSeries, {
-          color: "#3300ffff",
-          lineWidth: 1,
-          lineStyle: 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
+    // 绘制笔线段
+    if (mainChartRef.current) {
+      const biSeries = addLineSegments(
+        mainChartRef.current,
+        data.bi_list,
+        LINE_SERIES_CONFIGS.bi,
+        convertToUnixTimestamp,
+        (bi, convertTime) => [
+          { time: convertTime(bi.begin_time), value: bi.begin_value },
+          { time: convertTime(bi.end_time), value: bi.end_value },
+        ]
+      );
+      lineSeriesListRef.current.push(...biSeries);
+
+      // 绘制线段
+      const segSeries = addLineSegments(
+        mainChartRef.current,
+        data.seg_list,
+        LINE_SERIES_CONFIGS.seg,
+        convertToUnixTimestamp,
+        (seg, convertTime) => [
+          { time: convertTime(seg.begin_time), value: seg.begin_value },
+          { time: convertTime(seg.end_time), value: seg.end_value },
+        ]
+      );
+      lineSeriesListRef.current.push(...segSeries);
+
+      // 绘制中枢（顶部和底部线）
+      if (data.zs_list && data.zs_list.length > 0) {
+        data.zs_list.forEach((zs) => {
+          // 顶部线
+          const zsTopSeries = addLineSegments(
+            mainChartRef.current,
+            [zs],
+            LINE_SERIES_CONFIGS.zs,
+            convertToUnixTimestamp,
+            (item, convertTime) => [
+              { time: convertTime(item.begin_time), value: item.high },
+              { time: convertTime(item.end_time), value: item.high },
+            ]
+          );
+
+          // 底部线
+          const zsBottomSeries = addLineSegments(
+            mainChartRef.current,
+            [zs],
+            LINE_SERIES_CONFIGS.zs,
+            convertToUnixTimestamp,
+            (item, convertTime) => [
+              { time: convertTime(item.begin_time), value: item.low },
+              { time: convertTime(item.end_time), value: item.low },
+            ]
+          );
+
+          lineSeriesListRef.current.push(...zsTopSeries, ...zsBottomSeries);
         });
-
-        biLineSeries.setData([
-          {
-            time: convertToUnixTimestamp(bi.begin_time),
-            value: bi.begin_value,
-          },
-          { time: convertToUnixTimestamp(bi.end_time), value: bi.end_value },
-        ]);
-
-        lineSeriesListRef.current.push(biLineSeries);
-      });
-    }
-
-    if (data.seg_list && data.seg_list.length > 0 && mainChartRef.current) {
-      data.seg_list.forEach((seg) => {
-        const lineSeries = mainChartRef.current.addSeries(LineSeries, {
-          color: "#ff0000ff",
-          lineWidth: 2,
-          lineStyle: 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-
-        lineSeries.setData([
-          {
-            time: convertToUnixTimestamp(seg.begin_time),
-            value: seg.begin_value,
-          },
-          { time: convertToUnixTimestamp(seg.end_time), value: seg.end_value },
-        ]);
-
-        lineSeriesListRef.current.push(lineSeries);
-      });
-    }
-
-    if (data.zs_list && data.zs_list.length > 0 && mainChartRef.current) {
-      data.zs_list.forEach((zs) => {
-        const zsTopLine = mainChartRef.current.addSeries(LineSeries, {
-          color: "#000000ff",
-          lineWidth: 2,
-          lineStyle: 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-
-        zsTopLine.setData([
-          { time: convertToUnixTimestamp(zs.begin_time), value: zs.high },
-          { time: convertToUnixTimestamp(zs.end_time), value: zs.high },
-        ]);
-
-        const zsBottomLine = mainChartRef.current.addSeries(LineSeries, {
-          color: "#000000ff",
-          lineWidth: 2,
-          lineStyle: 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-
-        zsBottomLine.setData([
-          { time: convertToUnixTimestamp(zs.begin_time), value: zs.low },
-          { time: convertToUnixTimestamp(zs.end_time), value: zs.low },
-        ]);
-
-        lineSeriesListRef.current.push(zsTopLine, zsBottomLine);
-      });
+      }
     }
 
     if (seriesMarkersRef.current) {
@@ -324,7 +372,7 @@ const ChartContainer = ({ data }) => {
         return {
           time: convertToUnixTimestamp(bs.time),
           position: bs.is_buy ? "belowBar" : "aboveBar",
-          color: bs.is_buy ? "#ff0000ff" : "#1bb31bff",
+          color: bs.is_buy ? COLORS.buyMarker : COLORS.sellMarker,
           shape: bs.is_buy ? "arrowUp" : "arrowDown",
           text: textData.text,
           size: 2,
@@ -366,7 +414,7 @@ const ChartContainer = ({ data }) => {
           const macdHistogramSeries = macdChartRef.current.addSeries(
             HistogramSeries,
             {
-              color: "#26a69a",
+              color: COLORS.downColor,
               priceFormat: {
                 type: "price",
                 precision: 3,
@@ -379,29 +427,13 @@ const ChartContainer = ({ data }) => {
           histogramSeriesRef.current = macdHistogramSeries;
           macdHistogramSeries.setData(macdData.histogram);
 
-          const difLineSeries = macdChartRef.current.addSeries(LineSeries, {
-            color: "#2962FF",
-            lineWidth: 1,
-            priceLineVisible: false,
-            lastValueVisible: false,
-          });
+          const difLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.dif);
           difLineSeries.setData(macdData.dif);
 
-          const deaLineSeries = macdChartRef.current.addSeries(LineSeries, {
-            color: "#FF6D00",
-            lineWidth: 1,
-            priceLineVisible: false,
-            lastValueVisible: false,
-          });
+          const deaLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.dea);
           deaLineSeries.setData(macdData.dea);
 
-          const zeroLineSeries = macdChartRef.current.addSeries(LineSeries, {
-            color: "#787B86",
-            lineWidth: 1,
-            lineStyle: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-          });
+          const zeroLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.zero);
           const zeroLineData = macdData.dif.map((item) => ({
             time: item.time,
             value: 0,
@@ -441,7 +473,7 @@ const ChartContainer = ({ data }) => {
         .timeScale()
         .unsubscribeVisibleLogicalRangeChange(syncTimeFromMacd);
     };
-  }, [data]);
+  }, [data, klineData]);
 
   const handleMainCrosshairMove = (param) => {
     if (param.time) {
@@ -550,7 +582,7 @@ const ChartContainer = ({ data }) => {
             histogram.push({
               time,
               value: item.histogram ?? 0,
-              color: item.histogram >= 0 ? "#ef5350" : "#26a69a",
+              color: item.histogram >= 0 ? COLORS.upColor : COLORS.downColor,
             });
           }
         }
