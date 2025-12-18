@@ -8,22 +8,20 @@ import "./App.css";
 function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const handleQuery = async (request) => {
     message.info("正在查询，请稍候...");
     setLoading(true);
-    setError(null);
-    
+
     try {
       const result = await chanApi.calculateChan(request);
       setData(result);
       message.success("查询成功！");
     } catch (err) {
-      setError(
+      message.error("查询失败，请检查控制台报错信息！");
+      console.error(
         err.response?.data?.detail || err.message || "查询失败，请检查网络连接"
       );
-      console.error("Query error:", err);
     } finally {
       setLoading(false);
     }
@@ -32,15 +30,6 @@ function App() {
   return (
     <div className="app">
       <Header onQuery={handleQuery} loading={loading} />
-      {error && (
-        <div className="error-message">
-          <span className="error-icon">⚠</span>
-          <span>{error}</span>
-          <button className="error-close" onClick={() => setError(null)}>
-            ×
-          </button>
-        </div>
-      )}
       <div className="main-content">
         <ChartContainer data={data} />
       </div>
