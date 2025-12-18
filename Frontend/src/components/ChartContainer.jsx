@@ -10,6 +10,7 @@ import "./ChartContainer.css";
 import {
   getBsPointData,
   calculateMACD,
+  calculateMA,
   convertToUnixTimestamp,
   MACD_CONFIG,
 } from "../utils/utils";
@@ -20,11 +21,15 @@ const COLORS = {
   biLine: "#0048ffff",
   segLine: "#ff0000ff",
   zsLine: "#ffb700ff",
+  buyMarker: "#ff0000ff",
+  sellMarker: "#1bb31bff",
   difLine: "#2962FF",
   deaLine: "#FF6D00",
   zeroLine: "#787B86",
-  buyMarker: "#ff0000ff",
-  sellMarker: "#1bb31bff",
+  ma5: "#e91e63ff",
+  ma10: "#ff9800ff",
+  ma20: "#00bcd4ff",
+  ma30: "#9c27b0ff",
 };
 
 const getChartConfig = (
@@ -100,6 +105,30 @@ const LINE_SERIES_CONFIGS = {
     priceLineVisible: false,
     lastValueVisible: false,
   },
+  ma5: {
+    color: COLORS.ma5,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  ma10: {
+    color: COLORS.ma10,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  ma20: {
+    color: COLORS.ma20,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
+  ma30: {
+    color: COLORS.ma30,
+    lineWidth: 1,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  },
 };
 
 const FORMAT_CONFIG = {
@@ -136,6 +165,7 @@ const ChartContainer = ({ data, darkMode = false }) => {
     macdList: [], // MACD系列列表
     histogram: null, // MACD柱状图
     markers: null, // 买卖点标记
+    maList: [], // MA均线列表
   });
 
   const dataRefs = useRef({
@@ -518,6 +548,35 @@ const ChartContainer = ({ data, darkMode = false }) => {
             zeroLineSeries
           );
         }
+      }
+    }
+
+    // 添加均线
+    if (chartRefs.current.main) {
+      seriesRefs.current.maList.forEach((series) => {
+        chartRefs.current.main.removeSeries(series);
+      });
+      seriesRefs.current.maList = [];
+
+      if (data.klines && data.klines.length > 0) {
+        const maPeriods = [
+          { period: 5, config: LINE_SERIES_CONFIGS.ma5 },
+          { period: 10, config: LINE_SERIES_CONFIGS.ma10 },
+          { period: 20, config: LINE_SERIES_CONFIGS.ma20 },
+          { period: 30, config: LINE_SERIES_CONFIGS.ma30 },
+        ];
+
+        maPeriods.forEach(({ period, config }) => {
+          const maData = calculateMA(data.klines, period);
+          if (maData.length > 0) {
+            const maSeries = chartRefs.current.main.addSeries(
+              LineSeries,
+              config
+            );
+            maSeries.setData(maData);
+            seriesRefs.current.maList.push(maSeries);
+          }
+        });
       }
     }
 

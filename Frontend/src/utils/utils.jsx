@@ -1,4 +1,4 @@
-import { MACD } from "technicalindicators";
+import { MACD, SMA } from "technicalindicators";
 import dayjs from "dayjs";
 
 export const MACD_CONFIG = {
@@ -140,4 +140,42 @@ export const getBsPointData = (typeStr, isBuy) => {
     text: typeMap[typeStr] || "Unknown",
     description: descriptionMap[typeStr] || "Unknown",
   };
+};
+
+/**
+ * 计算移动平均线 (MA - Moving Average)
+ * @param {Array} klines - K线数据数组
+ * @param {number} period - 周期（如 5、10、20、30）
+ * @returns {Array} 包含时间和值的移动平均线数据
+ */
+export const calculateMA = (klines, period) => {
+  try {
+    if (!klines || klines.length < period) {
+      return [];
+    }
+
+    const closePrices = klines.map((k) => parseFloat(k.close));
+    const maResult = SMA.calculate({ period, values: closePrices });
+
+    if (!maResult || maResult.length === 0) {
+      return [];
+    }
+
+    const maData = [];
+    const startIndex = closePrices.length - maResult.length;
+
+    for (let i = startIndex; i < klines.length; i++) {
+      const maIndex = i - startIndex;
+      const time = convertToUnixTimestamp(klines[i].time);
+      maData.push({
+        time,
+        value: maResult[maIndex],
+      });
+    }
+
+    return maData;
+  } catch (error) {
+    console.error(`MA${period} calculation error:`, error);
+    return [];
+  }
 };
