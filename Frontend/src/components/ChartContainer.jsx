@@ -83,15 +83,15 @@ const LINE_SERIES_CONFIGS = {
   },
   dif: {
     color: COLORS.difLine,
-    lineWidth: 1,
+    lineWidth: 2,
     priceLineVisible: false,
-    lastValueVisible: false,
+    lastValueVisible: true,
   },
   dea: {
     color: COLORS.deaLine,
-    lineWidth: 1,
+    lineWidth: 2,
     priceLineVisible: false,
-    lastValueVisible: false,
+    lastValueVisible: true,
   },
   zero: {
     color: COLORS.zeroLine,
