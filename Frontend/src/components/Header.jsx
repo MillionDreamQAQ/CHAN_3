@@ -8,7 +8,7 @@ import "./Header.css";
 const Header = ({ onQuery, loading }) => {
   // baostock API只提供到昨天的数据
   const getYesterdayDate = () => {
-    return dayjs().subtract(1, "day").format("YYYY-MM-DD");
+    return dayjs().format("YYYY-MM-DD");
   };
 
   const [code, setCode] = useState("sh.000001");
