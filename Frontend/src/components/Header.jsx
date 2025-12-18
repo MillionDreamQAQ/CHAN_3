@@ -1,12 +1,28 @@
 import { useState, useEffect } from "react";
-import { AutoComplete, DatePicker, Button, Select, Spin, message } from "antd";
+import {
+  AutoComplete,
+  DatePicker,
+  Button,
+  Select,
+  Spin,
+  message,
+  Checkbox,
+} from "antd";
 import { BulbOutlined, BulbFilled } from "@ant-design/icons";
+import { COLORS } from "../config/config";
 import dayjs from "dayjs";
 import axios from "axios";
 import Fuse from "fuse.js";
 import "./Header.css";
 
-const Header = ({ onQuery, loading, darkMode, onToggleDarkMode }) => {
+const Header = ({
+  onQuery,
+  loading,
+  darkMode,
+  onToggleDarkMode,
+  indicators,
+  onToggleIndicator,
+}) => {
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
@@ -109,89 +125,157 @@ const Header = ({ onQuery, loading, darkMode, onToggleDarkMode }) => {
   return (
     <header className="app-header">
       <div className="header-content">
-        <Button
-          type="text"
-          icon={darkMode ? <BulbFilled /> : <BulbOutlined />}
-          onClick={onToggleDarkMode}
-          className="theme-toggle"
-          title={darkMode ? "切换到日间模式" : "切换到夜间模式"}
-        />
-        <form className="query-form" onSubmit={handleSubmit}>
-          <div className="form-group">
-            <Select
-              value={klineType}
-              onChange={setKlineType}
-              style={{
-                width: "100px",
-                backgroundColor: darkMode ? "#333" : "#fff",
-                color: darkMode ? "#fff" : "#333",
-              }}
-              options={[
-                { value: "day", label: "日线" },
-                { value: "week", label: "周线" },
-                { value: "month", label: "月线" },
-                { value: "5m", label: "5分线" },
-                { value: "15m", label: "15分线" },
-                { value: "30m", label: "30分线" },
-                { value: "60m", label: "60分线" },
-              ]}
-            />
-          </div>
-          <div className="form-group">
-            <AutoComplete
-              value={code}
-              options={searchOptions}
-              showSearch={{ onSearch: handleSearch }}
-              onClick={() => setCode(null)}
-              onSelect={(value) => setCode(value)}
-              onChange={(value) => setCode(value)}
-              placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
-              style={{
-                width: "160px",
-                height: "32px",
-                backgroundColor: darkMode ? "#333" : "#fff",
-                color: darkMode ? "#fff" : "#333",
-              }}
-              notFoundContent={
-                stocksLoading ? <Spin size="small" /> : "无匹配结果"
-              }
-            />
-          </div>
-          <div className="form-group">
-            <DatePicker
-              value={beginTime ? dayjs(beginTime) : null}
-              onChange={(date, dateString) => setBeginTime(dateString)}
-              placeholder="选择开始时间"
-              format="YYYY-MM-DD"
-              style={{
-                width: "120px",
-                backgroundColor: darkMode ? "#333" : "#fff",
-                color: darkMode ? "#fff" : "#333",
-              }}
-            />
-          </div>
-          <div className="form-group">
-            <DatePicker
-              value={endTime ? dayjs(endTime) : null}
-              onChange={(date, dateString) => setEndTime(dateString)}
-              placeholder="选择结束时间"
-              format="YYYY-MM-DD"
-              style={{
-                width: "120px",
-                backgroundColor: darkMode ? "#333" : "#fff",
-                color: darkMode ? "#fff" : "#333",
-              }}
-            />
-          </div>
+        <div className="header-left">
           <Button
-            type="primary"
-            htmlType="submit"
-            loading={loading}
-            className="query-button"
-          >
-            查询
-          </Button>
-        </form>
+            type="text"
+            icon={darkMode ? <BulbFilled /> : <BulbOutlined />}
+            onClick={onToggleDarkMode}
+            className="theme-toggle"
+            title={darkMode ? "切换到日间模式" : "切换到夜间模式"}
+          />
+          <div className="indicator-divider"></div>
+          <div className="indicators-control">
+            <div className="indicator-group">
+              <Checkbox
+                checked={indicators.ma5}
+                onChange={() => onToggleIndicator("ma5")}
+              >
+                <span style={{ color: COLORS.ma5 }}>MA5</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.ma10}
+                onChange={() => onToggleIndicator("ma10")}
+              >
+                <span style={{ color: COLORS.ma10 }}>MA10</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.ma20}
+                onChange={() => onToggleIndicator("ma20")}
+              >
+                <span style={{ color: COLORS.ma20 }}>MA20</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.ma30}
+                onChange={() => onToggleIndicator("ma30")}
+              >
+                <span style={{ color: COLORS.ma30 }}>MA30</span>
+              </Checkbox>
+            </div>
+            <div className="indicator-divider"></div>
+            <div className="indicator-group">
+              <Checkbox
+                checked={indicators.bi}
+                onChange={() => onToggleIndicator("bi")}
+              >
+                <span style={{ color: COLORS.biLine }}>笔</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.seg}
+                onChange={() => onToggleIndicator("seg")}
+              >
+                <span style={{ color: COLORS.segLine }}>段</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.zs}
+                onChange={() => onToggleIndicator("zs")}
+              >
+                <span style={{ color: COLORS.zsLine }}>中枢</span>
+              </Checkbox>
+              <Checkbox
+                checked={indicators.bsPoints}
+                onChange={() => onToggleIndicator("bsPoints")}
+              >
+                <span style={{ color: COLORS.buyMarker }}>买</span>
+                <span style={{ color: COLORS.sellMarker }}>卖</span>点
+              </Checkbox>
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧查询表单 */}
+        <div className="header-right">
+          <form className="query-form" onSubmit={handleSubmit}>
+            <div className="form-group">
+              <Select
+                value={klineType}
+                onChange={setKlineType}
+                style={{
+                  width: "100px",
+                  backgroundColor: darkMode ? "#333" : "#fff",
+                  color: darkMode ? "#fff" : "#333",
+                }}
+                options={[
+                  { value: "day", label: "日线" },
+                  { value: "week", label: "周线" },
+                  { value: "month", label: "月线" },
+                  { value: "5m", label: "5分线" },
+                  { value: "15m", label: "15分线" },
+                  { value: "30m", label: "30分线" },
+                  { value: "60m", label: "60分线" },
+                ]}
+              />
+            </div>
+            <div className="form-group">
+              <AutoComplete
+                value={code}
+                options={searchOptions}
+                showSearch={{ onSearch: handleSearch }}
+                onClick={() => setCode(null)}
+                onBlur={() => {
+                  if (!code) {
+                    setCode("sh.000001");
+                  }
+                }}
+                onSelect={(value) => setCode(value)}
+                onChange={(value) => setCode(value)}
+                placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
+                style={{
+                  width: "160px",
+                  height: "32px",
+                  backgroundColor: darkMode ? "#333" : "#fff",
+                  color: darkMode ? "#fff" : "#333",
+                }}
+                notFoundContent={
+                  stocksLoading ? <Spin size="small" /> : "无匹配结果"
+                }
+              />
+            </div>
+            <div className="form-group">
+              <DatePicker
+                value={beginTime ? dayjs(beginTime) : null}
+                onChange={(date, dateString) => setBeginTime(dateString)}
+                placeholder="选择开始时间"
+                format="YYYY-MM-DD"
+                style={{
+                  width: "120px",
+                  backgroundColor: darkMode ? "#333" : "#fff",
+                  color: darkMode ? "#fff" : "#333",
+                }}
+              />
+            </div>
+            <div className="form-group">
+              <DatePicker
+                value={endTime ? dayjs(endTime) : null}
+                onChange={(date, dateString) => setEndTime(dateString)}
+                placeholder="选择结束时间"
+                format="YYYY-MM-DD"
+                style={{
+                  width: "120px",
+                  backgroundColor: darkMode ? "#333" : "#fff",
+                  color: darkMode ? "#fff" : "#333",
+                }}
+              />
+            </div>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              className="query-button"
+            >
+              查询
+            </Button>
+          </form>
+        </div>
       </div>
     </header>
   );

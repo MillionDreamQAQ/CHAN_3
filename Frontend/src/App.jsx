@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Header from "./components/Header";
 import ChartContainer from "./components/ChartContainer";
 import { chanApi } from "./services/api";
@@ -13,6 +13,17 @@ function App() {
     return saved === "true";
   });
 
+  const [indicators, setIndicators] = useState({
+    ma5: true,
+    ma10: true,
+    ma20: true,
+    ma30: true,
+    bi: true,
+    seg: true,
+    zs: true,
+    bsPoints: true,
+  });
+
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add("dark-mode");
@@ -25,6 +36,13 @@ function App() {
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
   };
+
+  const toggleIndicator = useCallback((key) => {
+    setIndicators((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }, []);
 
   const handleQuery = async (request) => {
     message.info("正在查询，请稍候...");
@@ -50,10 +68,16 @@ function App() {
         onQuery={handleQuery}
         loading={loading}
         darkMode={darkMode}
+        indicators={indicators}
+        onToggleIndicator={toggleIndicator}
         onToggleDarkMode={toggleDarkMode}
       />
       <div className="main-content">
-        <ChartContainer data={data} darkMode={darkMode} />
+        <ChartContainer
+          data={data}
+          darkMode={darkMode}
+          indicators={indicators}
+        />
       </div>
     </div>
   );

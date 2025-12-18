@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback, memo } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -14,163 +14,43 @@ import {
   convertToUnixTimestamp,
   MACD_CONFIG,
 } from "../utils/utils";
+import {
+  COLORS,
+  LINE_SERIES_CONFIGS,
+  CHART_SIZES,
+  FORMAT_CONFIG,
+  getChartConfig,
+} from "../config/config";
 
-const COLORS = {
-  upColor: "#eb3532ff",
-  downColor: "#1dc36aff",
-  biLine: "#0048ffff",
-  segLine: "#ff0000ff",
-  zsLine: "#ffb700ff",
-  buyMarker: "#ff0000ff",
-  sellMarker: "#1bb31bff",
-  difLine: "#2962FF",
-  deaLine: "#FF6D00",
-  zeroLine: "#787B86",
-  ma5: "#e91e63ff",
-  ma10: "#ff9800ff",
-  ma20: "#00bcd4ff",
-  ma30: "#9c27b0ff",
-};
-
-const getChartConfig = (
-  width,
-  height,
-  showTimeVisible = true,
-  darkMode = false
-) => ({
-  width,
-  height,
-  layout: {
-    background: { color: darkMode ? "#1a1a1a" : "#ffffff" },
-    textColor: darkMode ? "#e0e0e0" : "#333",
-  },
-  grid: {
-    vertLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
-    horzLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
-  },
-  crosshair: {
-    mode: 1,
-  },
-  rightPriceScale: {
-    borderColor: darkMode ? "#404040" : "#d1d4dc",
-  },
-  timeScale: {
-    borderColor: darkMode ? "#404040" : "#d1d4dc",
-    timeVisible: showTimeVisible,
-    secondsVisible: false,
-  },
-  localization: {
-    dateFormat: "yyyy-MM-dd",
-  },
-});
-
-const LINE_SERIES_CONFIGS = {
-  bi: {
-    color: COLORS.biLine,
-    lineWidth: 1,
-    lineStyle: 0,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  seg: {
-    color: COLORS.segLine,
-    lineWidth: 2,
-    lineStyle: 0,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  zs: {
-    color: COLORS.zsLine,
-    lineWidth: 2,
-    lineStyle: 0,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  dif: {
-    color: COLORS.difLine,
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: true,
-  },
-  dea: {
-    color: COLORS.deaLine,
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: true,
-  },
-  zero: {
-    color: COLORS.zeroLine,
-    lineWidth: 1,
-    lineStyle: 2,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  ma5: {
-    color: COLORS.ma5,
-    lineWidth: 1,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  ma10: {
-    color: COLORS.ma10,
-    lineWidth: 1,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  ma20: {
-    color: COLORS.ma20,
-    lineWidth: 1,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-  ma30: {
-    color: COLORS.ma30,
-    lineWidth: 1,
-    priceLineVisible: false,
-    lastValueVisible: false,
-  },
-};
-
-const FORMAT_CONFIG = {
-  volumeThreshold: 100000000,
-  volumeDivisor: 10000,
-  volumeDivisorLarge: 100000000,
-  priceDecimal: 2,
-  volumeDecimal: 2,
-};
-
-const CHART_SIZES = {
-  mainHeight: 400,
-  macdHeight: 150,
-};
-
-const ChartContainer = ({ data, darkMode = false }) => {
+const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   const [loading, setLoading] = useState(true);
   const [klineInfo, setKlineInfo] = useState(null);
 
   const containerRefs = useRef({
-    main: null, // 主图表容器
-    macd: null, // MACD图表容器
-    tooltip: null, // 提示框容器
+    main: null,
+    macd: null,
+    tooltip: null,
   });
 
   const chartRefs = useRef({
-    main: null, // 主图表实例
-    macd: null, // MACD图表实例
+    main: null,
+    macd: null,
   });
 
   const seriesRefs = useRef({
-    candlestick: null, // K线系列
-    lineList: [], // 线段列表（bi、seg、zs）
-    macdList: [], // MACD系列列表
-    histogram: null, // MACD柱状图
-    markers: null, // 买卖点标记
-    maList: [], // MA均线列表
+    candlestick: null,
+    bi: [],
+    seg: [],
+    zs: [],
+    macdList: [],
+    histogram: null,
+    markers: null,
+    ma: {},
   });
 
   const dataRefs = useRef({
-    kline: [], // K线数据
-    markers: [], // 标记数据
+    kline: [],
+    markers: [],
   });
 
   const addLineSegments = (
@@ -371,12 +251,12 @@ const ChartContainer = ({ data, darkMode = false }) => {
   }, [data?.klines]);
 
   useEffect(() => {
-    if (!data || !seriesRefs.current.candlestick) return;
+    if (!data || !seriesRefs.current.candlestick || !chartRefs.current.main)
+      return;
 
     setLoading(true);
 
     dataRefs.current.kline = klineData;
-
     seriesRefs.current.candlestick.setData(klineData);
 
     if (klineData.length > 0) {
@@ -394,68 +274,101 @@ const ChartContainer = ({ data, darkMode = false }) => {
       });
     }
 
-    seriesRefs.current.lineList.forEach((series) => {
-      chartRefs.current.main.removeSeries(series);
+    seriesRefs.current.bi.forEach((s) =>
+      chartRefs.current.main.removeSeries(s)
+    );
+    seriesRefs.current.seg.forEach((s) =>
+      chartRefs.current.main.removeSeries(s)
+    );
+    seriesRefs.current.zs.forEach((s) =>
+      chartRefs.current.main.removeSeries(s)
+    );
+    Object.values(seriesRefs.current.ma).forEach((s) => {
+      if (s) chartRefs.current.main.removeSeries(s);
     });
-    seriesRefs.current.lineList = [];
+    if (seriesRefs.current.markers) {
+      seriesRefs.current.markers.detach();
+    }
 
-    if (chartRefs.current.main) {
-      const biSeries = addLineSegments(
+    seriesRefs.current.bi = [];
+    seriesRefs.current.seg = [];
+    seriesRefs.current.zs = [];
+    seriesRefs.current.ma = {};
+    seriesRefs.current.markers = null;
+
+    if (data.bi_list) {
+      seriesRefs.current.bi = addLineSegments(
         chartRefs.current.main,
         data.bi_list,
-        LINE_SERIES_CONFIGS.bi,
+        { ...LINE_SERIES_CONFIGS.bi, visible: indicators.bi },
         convertToUnixTimestamp,
         (bi, convertTime) => [
           { time: convertTime(bi.begin_time), value: bi.begin_value },
           { time: convertTime(bi.end_time), value: bi.end_value },
         ]
       );
-      seriesRefs.current.lineList.push(...biSeries);
+    }
 
-      const segSeries = addLineSegments(
+    if (data.seg_list) {
+      seriesRefs.current.seg = addLineSegments(
         chartRefs.current.main,
         data.seg_list,
-        LINE_SERIES_CONFIGS.seg,
+        { ...LINE_SERIES_CONFIGS.seg, visible: indicators.seg },
         convertToUnixTimestamp,
         (seg, convertTime) => [
           { time: convertTime(seg.begin_time), value: seg.begin_value },
           { time: convertTime(seg.end_time), value: seg.end_value },
         ]
       );
-      seriesRefs.current.lineList.push(...segSeries);
-
-      if (data.zs_list && data.zs_list.length > 0) {
-        data.zs_list.forEach((zs) => {
-          const zsTopSeries = addLineSegments(
-            chartRefs.current.main,
-            [zs],
-            LINE_SERIES_CONFIGS.zs,
-            convertToUnixTimestamp,
-            (item, convertTime) => [
-              { time: convertTime(item.begin_time), value: item.high },
-              { time: convertTime(item.end_time), value: item.high },
-            ]
-          );
-
-          const zsBottomSeries = addLineSegments(
-            chartRefs.current.main,
-            [zs],
-            LINE_SERIES_CONFIGS.zs,
-            convertToUnixTimestamp,
-            (item, convertTime) => [
-              { time: convertTime(item.begin_time), value: item.low },
-              { time: convertTime(item.end_time), value: item.low },
-            ]
-          );
-
-          seriesRefs.current.lineList.push(...zsTopSeries, ...zsBottomSeries);
-        });
-      }
     }
 
-    if (seriesRefs.current.markers) {
-      seriesRefs.current.markers.detach();
-      seriesRefs.current.markers = null;
+    if (data.zs_list && data.zs_list.length > 0) {
+      const zsSeries = [];
+      data.zs_list.forEach((zs) => {
+        const zsTopSeries = addLineSegments(
+          chartRefs.current.main,
+          [zs],
+          { ...LINE_SERIES_CONFIGS.zs, visible: indicators.zs },
+          convertToUnixTimestamp,
+          (item, convertTime) => [
+            { time: convertTime(item.begin_time), value: item.high },
+            { time: convertTime(item.end_time), value: item.high },
+          ]
+        );
+        const zsBottomSeries = addLineSegments(
+          chartRefs.current.main,
+          [zs],
+          { ...LINE_SERIES_CONFIGS.zs, visible: indicators.zs },
+          convertToUnixTimestamp,
+          (item, convertTime) => [
+            { time: convertTime(item.begin_time), value: item.low },
+            { time: convertTime(item.end_time), value: item.low },
+          ]
+        );
+        zsSeries.push(...zsTopSeries, ...zsBottomSeries);
+      });
+      seriesRefs.current.zs = zsSeries;
+    }
+
+    if (data.klines && data.klines.length > 0) {
+      const maPeriods = [
+        { key: "ma5", period: 5, config: LINE_SERIES_CONFIGS.ma5 },
+        { key: "ma10", period: 10, config: LINE_SERIES_CONFIGS.ma10 },
+        { key: "ma20", period: 20, config: LINE_SERIES_CONFIGS.ma20 },
+        { key: "ma30", period: 30, config: LINE_SERIES_CONFIGS.ma30 },
+      ];
+
+      maPeriods.forEach(({ key, period, config }) => {
+        const maData = calculateMA(data.klines, period);
+        if (maData.length > 0) {
+          const maSeries = chartRefs.current.main.addSeries(LineSeries, {
+            ...config,
+            visible: indicators[key],
+          });
+          maSeries.setData(maData);
+          seriesRefs.current.ma[key] = maSeries;
+        }
+      });
     }
 
     if (data.bs_points && data.bs_points.length > 0) {
@@ -477,7 +390,6 @@ const ChartContainer = ({ data, darkMode = false }) => {
           `,
         };
       });
-
       bsMarkers.sort((a, b) => new Date(a.time) - new Date(b.time));
       dataRefs.current.markers = bsMarkers;
 
@@ -485,8 +397,11 @@ const ChartContainer = ({ data, darkMode = false }) => {
         seriesRefs.current.candlestick,
         bsMarkers
       );
-    } else {
-      dataRefs.current.markers = [];
+      if (seriesRefs.current.markers) {
+        seriesRefs.current.markers.applyOptions({
+          visible: indicators.bsPoints,
+        });
+      }
     }
 
     if (chartRefs.current.macd) {
@@ -551,37 +466,56 @@ const ChartContainer = ({ data, darkMode = false }) => {
       }
     }
 
-    // 添加均线
-    if (chartRefs.current.main) {
-      seriesRefs.current.maList.forEach((series) => {
-        chartRefs.current.main.removeSeries(series);
-      });
-      seriesRefs.current.maList = [];
-
-      if (data.klines && data.klines.length > 0) {
-        const maPeriods = [
-          { period: 5, config: LINE_SERIES_CONFIGS.ma5 },
-          { period: 10, config: LINE_SERIES_CONFIGS.ma10 },
-          { period: 20, config: LINE_SERIES_CONFIGS.ma20 },
-          { period: 30, config: LINE_SERIES_CONFIGS.ma30 },
-        ];
-
-        maPeriods.forEach(({ period, config }) => {
-          const maData = calculateMA(data.klines, period);
-          if (maData.length > 0) {
-            const maSeries = chartRefs.current.main.addSeries(
-              LineSeries,
-              config
-            );
-            maSeries.setData(maData);
-            seriesRefs.current.maList.push(maSeries);
-          }
-        });
-      }
-    }
-
     setLoading(false);
   }, [data, klineData]);
+
+  useEffect(() => {
+    seriesRefs.current.bi.forEach((series) => {
+      series.applyOptions({ visible: indicators.bi });
+    });
+  }, [indicators.bi]);
+
+  useEffect(() => {
+    seriesRefs.current.seg.forEach((series) => {
+      series.applyOptions({ visible: indicators.seg });
+    });
+  }, [indicators.seg]);
+
+  useEffect(() => {
+    seriesRefs.current.zs.forEach((series) => {
+      series.applyOptions({ visible: indicators.zs });
+    });
+  }, [indicators.zs]);
+
+  useEffect(() => {
+    if (seriesRefs.current.markers) {
+      seriesRefs.current.markers.applyOptions({ visible: indicators.bsPoints });
+    }
+  }, [indicators.bsPoints]);
+
+  useEffect(() => {
+    if (seriesRefs.current.ma.ma5) {
+      seriesRefs.current.ma.ma5.applyOptions({ visible: indicators.ma5 });
+    }
+  }, [indicators.ma5]);
+
+  useEffect(() => {
+    if (seriesRefs.current.ma.ma10) {
+      seriesRefs.current.ma.ma10.applyOptions({ visible: indicators.ma10 });
+    }
+  }, [indicators.ma10]);
+
+  useEffect(() => {
+    if (seriesRefs.current.ma.ma20) {
+      seriesRefs.current.ma.ma20.applyOptions({ visible: indicators.ma20 });
+    }
+  }, [indicators.ma20]);
+
+  useEffect(() => {
+    if (seriesRefs.current.ma.ma30) {
+      seriesRefs.current.ma.ma30.applyOptions({ visible: indicators.ma30 });
+    }
+  }, [indicators.ma30]);
 
   const handleMainCrosshairMove = useCallback((param) => {
     if (param.time && seriesRefs.current.histogram && chartRefs.current.macd) {
@@ -790,4 +724,4 @@ const ChartContainer = ({ data, darkMode = false }) => {
   );
 };
 
-export default ChartContainer;
+export default memo(ChartContainer);

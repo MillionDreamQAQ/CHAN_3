@@ -9,6 +9,51 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.indicators-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.indicator-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.indicator-group .ant-checkbox-wrapper {
+  font-size: 13px;
+  margin: 0;
+}
+
+.indicator-group .ant-checkbox-wrapper span {
+  font-weight: 500;
+}
+
+.indicator-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  opacity: 0.5;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-shrink: 0;
 }
 
 .header-title {
@@ -19,10 +64,9 @@
 }
 
 .query-form {
-  flex: 1;
   display: flex;
   gap: 15px;
-  justify-content: flex-end;
+  align-items: center;
 }
 
 /* 股票选择器Placeholder样式 */
