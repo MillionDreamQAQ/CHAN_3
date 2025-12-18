@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import {
   createChart,
   CandlestickSeries,
@@ -6,12 +6,14 @@ import {
   HistogramSeries,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { MACD } from "technicalindicators";
 import "./ChartContainer.css";
-import { getBsPointData } from "../utils/utils";
-import dayjs from "dayjs";
+import {
+  getBsPointData,
+  calculateMACD,
+  convertToUnixTimestamp,
+  MACD_CONFIG,
+} from "../utils/utils";
 
-// 颜色配置常量
 const COLORS = {
   upColor: "#ef5350",
   downColor: "#26a69a",
@@ -25,7 +27,6 @@ const COLORS = {
   sellMarker: "#1bb31bff",
 };
 
-// 通用图表配置
 const getChartConfig = (width, height, showTimeVisible = true) => ({
   width,
   height,
@@ -53,7 +54,6 @@ const getChartConfig = (width, height, showTimeVisible = true) => ({
   },
 });
 
-// LineSeries 配置模板
 const LINE_SERIES_CONFIGS = {
   bi: {
     color: COLORS.biLine,
@@ -97,6 +97,19 @@ const LINE_SERIES_CONFIGS = {
   },
 };
 
+const FORMAT_CONFIG = {
+  volumeThreshold: 100000000,
+  volumeDivisor: 10000,
+  volumeDivisorLarge: 100000000,
+  priceDecimal: 2,
+  volumeDecimal: 2,
+};
+
+const CHART_SIZES = {
+  mainHeight: 400,
+  macdHeight: 150,
+};
+
 const ChartContainer = ({ data }) => {
   const [loading, setLoading] = useState(true);
 
@@ -114,12 +127,13 @@ const ChartContainer = ({ data }) => {
   const klineDataRef = useRef([]);
   const [klineInfo, setKlineInfo] = useState(null);
 
-  const convertToUnixTimestamp = (timeStr) => {
-    return dayjs(timeStr).add(8, "hour").add(1, "minute").unix() - 60;
-  };
-
-  // 通用的添加线段系列函数
-  const addLineSegments = (chart, dataList, config, convertTime, getDataPoints) => {
+  const addLineSegments = (
+    chart,
+    dataList,
+    config,
+    convertTime,
+    getDataPoints
+  ) => {
     const seriesList = [];
 
     if (dataList && dataList.length > 0) {
@@ -142,17 +156,23 @@ const ChartContainer = ({ data }) => {
       chartContainerRef.current.parentElement?.clientWidth ||
       chartContainerRef.current.clientWidth;
 
-    // 使用通用配置创建主图表
     const mainChart = createChart(
       chartContainerRef.current,
-      getChartConfig(containerWidth, chartContainerRef.current.clientHeight || 400, true)
+      getChartConfig(
+        containerWidth,
+        chartContainerRef.current.clientHeight || CHART_SIZES.mainHeight,
+        true
+      )
     );
     mainChartRef.current = mainChart;
 
-    // 使用通用配置创建MACD图表
     const macdChart = createChart(
       macdContainerRef.current,
-      getChartConfig(containerWidth, macdContainerRef.current.clientHeight || 150, false)
+      getChartConfig(
+        containerWidth,
+        macdContainerRef.current.clientHeight || CHART_SIZES.macdHeight,
+        false
+      )
     );
     macdChartRef.current = macdChart;
 
@@ -164,10 +184,6 @@ const ChartContainer = ({ data }) => {
       wickDownColor: COLORS.downColor,
     });
     candlestickSeriesRef.current = candlestickSeries;
-
-    mainChart.timeScale().subscribeVisibleLogicalRangeChange((timeRange) => {
-      macdChart.timeScale().setVisibleLogicalRange(timeRange);
-    });
 
     const handleResize = () => {
       const resizeWidth =
@@ -261,7 +277,6 @@ const ChartContainer = ({ data }) => {
     };
   }, []);
 
-  // 使用 useMemo 缓存转换后的 kline 数据，避免重复转换
   const klineData = useMemo(() => {
     if (!data?.klines) return [];
     return data.klines.map((k) => ({
@@ -283,7 +298,6 @@ const ChartContainer = ({ data }) => {
 
     candlestickSeriesRef.current.setData(klineData);
 
-    // 设置初始K线信息为最后一根K线
     if (klineData.length > 0) {
       const lastKline = klineData[klineData.length - 1];
       setKlineInfo({
@@ -296,13 +310,11 @@ const ChartContainer = ({ data }) => {
       });
     }
 
-    // 清除之前的线段系列
     lineSeriesListRef.current.forEach((series) => {
       mainChartRef.current.removeSeries(series);
     });
     lineSeriesListRef.current = [];
 
-    // 绘制笔线段
     if (mainChartRef.current) {
       const biSeries = addLineSegments(
         mainChartRef.current,
@@ -316,7 +328,6 @@ const ChartContainer = ({ data }) => {
       );
       lineSeriesListRef.current.push(...biSeries);
 
-      // 绘制线段
       const segSeries = addLineSegments(
         mainChartRef.current,
         data.seg_list,
@@ -329,10 +340,8 @@ const ChartContainer = ({ data }) => {
       );
       lineSeriesListRef.current.push(...segSeries);
 
-      // 绘制中枢（顶部和底部线）
       if (data.zs_list && data.zs_list.length > 0) {
         data.zs_list.forEach((zs) => {
-          // 顶部线
           const zsTopSeries = addLineSegments(
             mainChartRef.current,
             [zs],
@@ -344,7 +353,6 @@ const ChartContainer = ({ data }) => {
             ]
           );
 
-          // 底部线
           const zsBottomSeries = addLineSegments(
             mainChartRef.current,
             [zs],
@@ -403,7 +411,7 @@ const ChartContainer = ({ data }) => {
       });
       macdSeriesListRef.current = [];
 
-      if (data.klines && data.klines.length >= 26) {
+      if (data.klines && data.klines.length >= MACD_CONFIG.minDataLength) {
         const macdData = calculateMACD(data.klines);
 
         if (
@@ -427,13 +435,22 @@ const ChartContainer = ({ data }) => {
           histogramSeriesRef.current = macdHistogramSeries;
           macdHistogramSeries.setData(macdData.histogram);
 
-          const difLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.dif);
+          const difLineSeries = macdChartRef.current.addSeries(
+            LineSeries,
+            LINE_SERIES_CONFIGS.dif
+          );
           difLineSeries.setData(macdData.dif);
 
-          const deaLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.dea);
+          const deaLineSeries = macdChartRef.current.addSeries(
+            LineSeries,
+            LINE_SERIES_CONFIGS.dea
+          );
           deaLineSeries.setData(macdData.dea);
 
-          const zeroLineSeries = macdChartRef.current.addSeries(LineSeries, LINE_SERIES_CONFIGS.zero);
+          const zeroLineSeries = macdChartRef.current.addSeries(
+            LineSeries,
+            LINE_SERIES_CONFIGS.zero
+          );
           const zeroLineData = macdData.dif.map((item) => ({
             time: item.time,
             value: 0,
@@ -450,33 +467,11 @@ const ChartContainer = ({ data }) => {
       }
     }
 
-    mainChartRef.current.subscribeCrosshairMove(handleMainCrosshairMove);
-    macdChartRef.current.subscribeCrosshairMove(handleMACDCrosshairMove);
-
-    mainChartRef.current
-      .timeScale()
-      .subscribeVisibleLogicalRangeChange(syncTimeFromMain);
-    macdChartRef.current
-      .timeScale()
-      .subscribeVisibleLogicalRangeChange(syncTimeFromMacd);
-
     setLoading(false);
-
-    return () => {
-      mainChartRef.current.unsubscribeCrosshairMove(handleMainCrosshairMove);
-      macdChartRef.current.unsubscribeCrosshairMove(handleMACDCrosshairMove);
-
-      mainChartRef.current
-        .timeScale()
-        .unsubscribeVisibleLogicalRangeChange(syncTimeFromMain);
-      macdChartRef.current
-        .timeScale()
-        .unsubscribeVisibleLogicalRangeChange(syncTimeFromMacd);
-    };
   }, [data, klineData]);
 
-  const handleMainCrosshairMove = (param) => {
-    if (param.time) {
+  const handleMainCrosshairMove = useCallback((param) => {
+    if (param.time && histogramSeriesRef.current && macdChartRef.current) {
       const macdHistogramData = histogramSeriesRef.current.dataByIndex(
         param.logical
       );
@@ -488,13 +483,13 @@ const ChartContainer = ({ data }) => {
           histogramSeriesRef.current
         );
       }
-    } else {
+    } else if (macdChartRef.current) {
       macdChartRef.current.clearCrosshairPosition();
     }
-  };
+  }, []);
 
-  const handleMACDCrosshairMove = (param) => {
-    if (param.time) {
+  const handleMACDCrosshairMove = useCallback((param) => {
+    if (param.time && candlestickSeriesRef.current && mainChartRef.current) {
       const klineData = candlestickSeriesRef.current.dataByIndex(param.logical);
 
       if (klineData) {
@@ -504,96 +499,67 @@ const ChartContainer = ({ data }) => {
           candlestickSeriesRef.current
         );
       }
-    } else {
+    } else if (mainChartRef.current) {
       mainChartRef.current.clearCrosshairPosition();
     }
-  };
+  }, []);
 
-  const syncTimeFromMain = () => {
-    const mainRange = mainChartRef.current.timeScale().getVisibleLogicalRange();
-    if (mainRange) {
-      macdChartRef.current.timeScale().setVisibleLogicalRange(mainRange);
+  const syncTimeFromMain = useCallback(() => {
+    if (mainChartRef.current && macdChartRef.current) {
+      const mainRange = mainChartRef.current
+        .timeScale()
+        .getVisibleLogicalRange();
+      if (mainRange) {
+        macdChartRef.current.timeScale().setVisibleLogicalRange(mainRange);
+      }
     }
-  };
+  }, []);
 
-  const syncTimeFromMacd = () => {
-    const macdRange = macdChartRef.current.timeScale().getVisibleLogicalRange();
-    if (macdRange) {
-      mainChartRef.current.timeScale().setVisibleLogicalRange(macdRange);
+  const syncTimeFromMacd = useCallback(() => {
+    if (macdChartRef.current && mainChartRef.current) {
+      const macdRange = macdChartRef.current
+        .timeScale()
+        .getVisibleLogicalRange();
+      if (macdRange) {
+        mainChartRef.current.timeScale().setVisibleLogicalRange(macdRange);
+      }
     }
-  };
+  }, []);
 
-  const calculateMACD = (klines) => {
-    try {
-      if (!klines || klines.length < 26) {
-        return { dif: [], dea: [], histogram: [] };
+  useEffect(() => {
+    if (!mainChartRef.current || !macdChartRef.current) return;
+
+    mainChartRef.current.subscribeCrosshairMove(handleMainCrosshairMove);
+    macdChartRef.current.subscribeCrosshairMove(handleMACDCrosshairMove);
+
+    mainChartRef.current
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(syncTimeFromMain);
+    macdChartRef.current
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(syncTimeFromMacd);
+
+    return () => {
+      if (mainChartRef.current) {
+        mainChartRef.current.unsubscribeCrosshairMove(handleMainCrosshairMove);
+        mainChartRef.current
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(syncTimeFromMain);
       }
 
-      const closePrices = klines.map((k) => parseFloat(k.close));
-
-      const macdInput = {
-        values: closePrices,
-        fastPeriod: 12,
-        slowPeriod: 26,
-        signalPeriod: 9,
-        SimpleMAOscillator: false,
-        SimpleMASignal: false,
-      };
-
-      const macdResult = MACD.calculate(macdInput);
-
-      if (!macdResult || macdResult.length === 0) {
-        return { dif: [], dea: [], histogram: [] };
+      if (macdChartRef.current) {
+        macdChartRef.current.unsubscribeCrosshairMove(handleMACDCrosshairMove);
+        macdChartRef.current
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(syncTimeFromMacd);
       }
-
-      const difData = [];
-      const deaData = [];
-      const histogram = [];
-
-      const startIndex = closePrices.length - macdResult.length;
-
-      for (let i = 0; i < klines.length; i++) {
-        const time = convertToUnixTimestamp(klines[i].time);
-
-        if (i < startIndex) {
-          // 前面没有MACD数据的部分，用0填充
-          difData.push({ time, value: 0 });
-          deaData.push({ time, value: 0 });
-          histogram.push({ time, value: 0, color: "rgba(0,0,0,0)" });
-        } else {
-          const macdIndex = i - startIndex;
-          const item = macdResult[macdIndex];
-
-          if (item.histogram) {
-            item.histogram = item.histogram * 2;
-          }
-
-          if (item) {
-            difData.push({
-              time,
-              value: item.MACD ?? 0,
-            });
-
-            deaData.push({
-              time,
-              value: item.signal ?? 0,
-            });
-
-            histogram.push({
-              time,
-              value: item.histogram ?? 0,
-              color: item.histogram >= 0 ? COLORS.upColor : COLORS.downColor,
-            });
-          }
-        }
-      }
-
-      return { dif: difData, dea: deaData, histogram };
-    } catch (error) {
-      console.error("MACD calculation error:", error);
-      return { dif: [], dea: [], histogram: [] };
-    }
-  };
+    };
+  }, [
+    handleMainCrosshairMove,
+    handleMACDCrosshairMove,
+    syncTimeFromMain,
+    syncTimeFromMacd,
+  ]);
 
   return (
     <div className="chart-container">
@@ -615,19 +581,19 @@ const ChartContainer = ({ data }) => {
             <div className="kline-info-item">
               <span className="kline-info-label">开</span>
               <span className="kline-info-value">
-                {klineInfo.open.toFixed(2)}
+                {klineInfo.open.toFixed(FORMAT_CONFIG.priceDecimal)}
               </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">高</span>
               <span className="kline-info-value kline-info-high">
-                {klineInfo.high.toFixed(2)}
+                {klineInfo.high.toFixed(FORMAT_CONFIG.priceDecimal)}
               </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">低</span>
               <span className="kline-info-value kline-info-low">
-                {klineInfo.low.toFixed(2)}
+                {klineInfo.low.toFixed(FORMAT_CONFIG.priceDecimal)}
               </span>
             </div>
             <div className="kline-info-item">
@@ -639,15 +605,19 @@ const ChartContainer = ({ data }) => {
                     : "kline-info-down"
                 }`}
               >
-                {klineInfo.close.toFixed(2)}
+                {klineInfo.close.toFixed(FORMAT_CONFIG.priceDecimal)}
               </span>
             </div>
             <div className="kline-info-item">
               <span className="kline-info-label">量</span>
               <span className="kline-info-value">
-                {klineInfo.volume >= 100000000
-                  ? `${(klineInfo.volume / 100000000).toFixed(2)}亿`
-                  : `${(klineInfo.volume / 10000).toFixed(2)}万`}
+                {klineInfo.volume >= FORMAT_CONFIG.volumeThreshold
+                  ? `${(
+                      klineInfo.volume / FORMAT_CONFIG.volumeDivisorLarge
+                    ).toFixed(FORMAT_CONFIG.volumeDecimal)}亿`
+                  : `${(klineInfo.volume / FORMAT_CONFIG.volumeDivisor).toFixed(
+                      FORMAT_CONFIG.volumeDecimal
+                    )}万`}
               </span>
             </div>
           </div>

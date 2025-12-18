@@ -1,4 +1,113 @@
-//根据输入的字符串和isBug属性返回对应的字符和详细描述
+import { MACD } from "technicalindicators";
+import dayjs from "dayjs";
+
+export const MACD_CONFIG = {
+  fastPeriod: 12,
+  slowPeriod: 26,
+  signalPeriod: 9,
+  minDataLength: 26,
+  histogramMultiplier: 2,
+};
+
+export const TIME_CONVERSION = {
+  hourOffset: 8,
+};
+
+export const CHART_COLORS = {
+  upColor: "#ef5350",
+  downColor: "#26a69a",
+};
+
+/**
+ * 将时间字符串转换为 Unix 时间戳
+ * @param {string} timeStr - 时间字符串
+ * @returns {number} Unix 时间戳
+ */
+export const convertToUnixTimestamp = (timeStr) => {
+  return dayjs(timeStr).add(TIME_CONVERSION.hourOffset, "hour").unix();
+};
+
+/**
+ * 计算 MACD 指标
+ * @param {Array} klines - K线数据数组
+ * @returns {Object} 包含 dif、dea、histogram 的对象
+ */
+export const calculateMACD = (klines) => {
+  try {
+    if (!klines || klines.length < MACD_CONFIG.minDataLength) {
+      return { dif: [], dea: [], histogram: [] };
+    }
+
+    const closePrices = klines.map((k) => parseFloat(k.close));
+
+    const macdInput = {
+      values: closePrices,
+      fastPeriod: MACD_CONFIG.fastPeriod,
+      slowPeriod: MACD_CONFIG.slowPeriod,
+      signalPeriod: MACD_CONFIG.signalPeriod,
+      SimpleMAOscillator: false,
+      SimpleMASignal: false,
+    };
+
+    const macdResult = MACD.calculate(macdInput);
+
+    if (!macdResult || macdResult.length === 0) {
+      return { dif: [], dea: [], histogram: [] };
+    }
+
+    const difData = [];
+    const deaData = [];
+    const histogram = [];
+
+    const startIndex = closePrices.length - macdResult.length;
+
+    for (let i = 0; i < klines.length; i++) {
+      const time = convertToUnixTimestamp(klines[i].time);
+
+      if (i < startIndex) {
+        // 前面没有MACD数据的部分，用0填充
+        difData.push({ time, value: 0 });
+        deaData.push({ time, value: 0 });
+        histogram.push({ time, value: 0, color: "rgba(0,0,0,0)" });
+      } else {
+        const macdIndex = i - startIndex;
+        const item = macdResult[macdIndex];
+
+        if (item.histogram) {
+          item.histogram = item.histogram * MACD_CONFIG.histogramMultiplier;
+        }
+
+        if (item) {
+          difData.push({
+            time,
+            value: item.MACD ?? 0,
+          });
+
+          deaData.push({
+            time,
+            value: item.signal ?? 0,
+          });
+
+          histogram.push({
+            time,
+            value: item.histogram ?? 0,
+            color:
+              item.histogram >= 0
+                ? CHART_COLORS.upColor
+                : CHART_COLORS.downColor,
+          });
+        }
+      }
+    }
+
+    return { dif: difData, dea: deaData, histogram };
+  } catch (error) {
+    console.error("MACD calculation error:", error);
+    return { dif: [], dea: [], histogram: [] };
+  }
+};
+
+// 根据输入的字符串和isBug属性返回对应的字符和详细描述
 
 // - 1,2：分别表示1，2，3类买卖点
 // - 2s：类二买卖点
