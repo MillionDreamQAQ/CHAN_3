@@ -82,13 +82,6 @@ def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
     return date_str
 
 
-def create_item_dict(data, column_name):
-    """创建K线数据字典"""
-    for i in range(len(data)):
-        data[i] = parse_time_column(data[i]) if i == 0 else str2float(data[i])
-    return dict(zip(column_name, data))
-
-
 def parse_time_column(inp):
     """解析时间列"""
     # 转换为字符串（可能是datetime对象）
@@ -286,52 +279,72 @@ class CTimescaleStockAPI(CCommonStockApi):
 
             logger.info(f"从数据库查询到 {len(rows)} 条 {self.code} 的数据")
 
-            if is_minute:
-                # 分钟线
-                for row in rows:
+            # 处理数据
+            for row in rows:
+                if is_minute:
+                    # 分钟线: date, time, open, high, low, close, volume, amount
                     date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row
-
-                    # 解析时间
                     time_obj = parse_time_column(str(time_str))
-
-                    # 构建数据字典
-                    data_dict = {
-                        DATA_FIELD.FIELD_TIME: time_obj,
-                        DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
-                        DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
-                        DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
-                        DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
-                        DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
-                        DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
-                    }
-
-                    yield CKLine_Unit(data_dict)
-
-            else:
-                # 日、周、月
-                for row in rows:
+                    data_dict = self._build_kline_data_dict(
+                        time_obj, open_val, high_val, low_val, close_val, volume, amount
+                    )
+                else:
+                    # 日、周、月: date, open, high, low, close, volume, amount, turn
                     time_str, open_val, high_val, low_val, close_val, volume, amount, turn = row
+                    time_obj = parse_time_column(str(time_str))
+                    data_dict = self._build_kline_data_dict(
+                        time_obj, open_val, high_val, low_val, close_val, volume, amount, turn
+                    )
 
-                    # 解析时间
-                    time_obj = parse_time_column(str(time_str))           
-
-                    # 构建数据字典
-                    data_dict = {
-                        DATA_FIELD.FIELD_TIME: time_obj,
-                        DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
-                        DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
-                        DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
-                        DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
-                        DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
-                        DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
-                        DATA_FIELD.FIELD_TURNRATE: float(turn) if turn else 0.0,
-                    }
-
-                    yield CKLine_Unit(data_dict)
+                yield CKLine_Unit(data_dict)
 
         except Exception as e:
             logger.error(f"从数据库查询数据失败: {e}")
             raise
+
+    @staticmethod
+    def _safe_float(val) -> Optional[float]:
+        """安全转换为float"""
+        return float(val) if val else None
+
+    @staticmethod
+    def _safe_int(val) -> Optional[int]:
+        """安全转换为int（volume可能是浮点数格式的字符串）"""
+        return int(float(val)) if val else None
+
+    def _build_kline_data_dict(self, time_obj: CTime, open_val, high_val, low_val,
+                                close_val, volume, amount, turn=None) -> dict:
+        """
+        构建K线数据字典
+
+        Args:
+            time_obj: 时间对象
+            open_val: 开盘价
+            high_val: 最高价
+            low_val: 最低价
+            close_val: 收盘价
+            volume: 成交量
+            amount: 成交额
+            turn: 换手率（仅日线、周线、月线有）
+
+        Returns:
+            数据字典
+        """
+        data_dict = {
+            DATA_FIELD.FIELD_TIME: time_obj,
+            DATA_FIELD.FIELD_OPEN: float(open_val) if open_val else 0.0,
+            DATA_FIELD.FIELD_HIGH: float(high_val) if high_val else 0.0,
+            DATA_FIELD.FIELD_LOW: float(low_val) if low_val else 0.0,
+            DATA_FIELD.FIELD_CLOSE: float(close_val) if close_val else 0.0,
+            DATA_FIELD.FIELD_VOLUME: float(volume) if volume else 0.0,
+            DATA_FIELD.FIELD_TURNOVER: float(amount) if amount else 0.0,
+        }
+
+        # 只有日线、周线、月线有换手率
+        if turn is not None:
+            data_dict[DATA_FIELD.FIELD_TURNRATE] = float(turn) if turn else 0.0
+
+        return data_dict
 
     def _get_table_name(self) -> str:
         """根据K线类型获取表名"""
@@ -474,6 +487,57 @@ class CTimescaleStockAPI(CCommonStockApi):
             logger.error(f"从BaoStock获取数据失败: {e}")
             raise
 
+    def _prepare_insert_records(self, data_list: List) -> List[tuple]:
+        """
+        准备批量插入的记录
+
+        Args:
+            data_list: 原始数据列表
+
+        Returns:
+            准备好的记录列表
+        """
+        records = []
+        is_minute = kltype_lt_day(self.k_type)
+
+        for row_data in data_list:
+            if is_minute:
+                # 分钟线: date, time, open, high, low, close, volume, amount
+                date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row_data
+
+                # 格式化时间字符串
+                time_str = time_str[:14]
+                time_str = f"{time_str[:4]}-{time_str[4:6]}-{time_str[6:8]} {time_str[8:10]}:{time_str[10:12]}:{time_str[12:14]}"
+
+                records.append((
+                    date_str,
+                    time_str,
+                    self.code,
+                    self._safe_float(open_val),
+                    self._safe_float(high_val),
+                    self._safe_float(low_val),
+                    self._safe_float(close_val),
+                    self._safe_int(volume),
+                    self._safe_float(amount),
+                ))
+            else:
+                # 日、周、月: date, open, high, low, close, volume, amount, turn
+                date_str, open_val, high_val, low_val, close_val, volume, amount, turn = row_data
+
+                records.append((
+                    date_str,
+                    self.code,
+                    self._safe_float(open_val),
+                    self._safe_float(high_val),
+                    self._safe_float(low_val),
+                    self._safe_float(close_val),
+                    self._safe_int(volume),
+                    self._safe_float(amount),
+                    self._safe_float(turn),
+                ))
+
+        return records
+
     def _save_to_database(self, data_list: List):
         """
         保存数据到数据库
@@ -514,50 +578,9 @@ class CTimescaleStockAPI(CCommonStockApi):
                     turn = EXCLUDED.turn
             """
 
-        # 辅助函数：安全转换为float
-        def safe_float(val):
-            return float(val) if val else None
-
-        # 辅助函数：安全转换为int（volume可能是浮点数格式的字符串）
-        def safe_int(val):
-            return int(float(val)) if val else None
-
         try:
             # 准备批量插入数据
-            records = []
-            if kltype_lt_day(self.k_type):
-                for row_data in data_list:
-                    date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row_data
-
-                    time_str = time_str[:14]
-                    time_str = f"{time_str[:4]}-{time_str[4:6]}-{time_str[6:8]} {time_str[8:10]}:{time_str[10:12]}:{time_str[12:14]}"
-
-                    records.append((
-                        date_str,
-                        time_str,
-                        self.code,
-                        safe_float(open_val),
-                        safe_float(high_val),
-                        safe_float(low_val),
-                        safe_float(close_val),
-                        safe_int(volume),
-                        safe_float(amount),
-                    ))
-            else:
-                for row_data in data_list:
-                    date_str, open_val, high_val, low_val, close_val, volume, amount, turn = row_data
-
-                    records.append((
-                        date_str,
-                        self.code,
-                        safe_float(open_val),
-                        safe_float(high_val),
-                        safe_float(low_val),
-                        safe_float(close_val),
-                        safe_int(volume),
-                        safe_float(amount),
-                        safe_float(turn),
-                    ))
+            records = self._prepare_insert_records(data_list)
 
             # 批量插入
             self.db_cursor.executemany(insert_sql, records)
