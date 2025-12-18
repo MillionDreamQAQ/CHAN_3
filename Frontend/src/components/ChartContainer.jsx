@@ -17,9 +17,9 @@ import {
 const COLORS = {
   upColor: "#ef5350",
   downColor: "#26a69a",
-  biLine: "#3300ffff",
+  biLine: "#0048ffff",
   segLine: "#ff0000ff",
-  zsLine: "#000000ff",
+  zsLine: "#ffb700ff",
   difLine: "#2962FF",
   deaLine: "#FF6D00",
   zeroLine: "#787B86",
@@ -27,25 +27,30 @@ const COLORS = {
   sellMarker: "#1bb31bff",
 };
 
-const getChartConfig = (width, height, showTimeVisible = true) => ({
+const getChartConfig = (
+  width,
+  height,
+  showTimeVisible = true,
+  darkMode = false
+) => ({
   width,
   height,
   layout: {
-    background: { color: "#ffffff" },
-    textColor: "#333",
+    background: { color: darkMode ? "#1a1a1a" : "#ffffff" },
+    textColor: darkMode ? "#e0e0e0" : "#333",
   },
   grid: {
-    vertLines: { color: "#f0f0f0" },
-    horzLines: { color: "#f0f0f0" },
+    vertLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
+    horzLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
   },
   crosshair: {
     mode: 1,
   },
   rightPriceScale: {
-    borderColor: "#d1d4dc",
+    borderColor: darkMode ? "#404040" : "#d1d4dc",
   },
   timeScale: {
-    borderColor: "#d1d4dc",
+    borderColor: darkMode ? "#404040" : "#d1d4dc",
     timeVisible: showTimeVisible,
     secondsVisible: false,
   },
@@ -110,7 +115,7 @@ const CHART_SIZES = {
   macdHeight: 150,
 };
 
-const ChartContainer = ({ data }) => {
+const ChartContainer = ({ data, darkMode = false }) => {
   const [loading, setLoading] = useState(true);
   const [klineInfo, setKlineInfo] = useState(null);
 
@@ -172,7 +177,8 @@ const ChartContainer = ({ data }) => {
       getChartConfig(
         containerWidth,
         containerRefs.current.main.clientHeight || CHART_SIZES.mainHeight,
-        true
+        true,
+        false
       )
     );
     chartRefs.current.main = mainChart;
@@ -182,6 +188,7 @@ const ChartContainer = ({ data }) => {
       getChartConfig(
         containerWidth,
         containerRefs.current.macd.clientHeight || CHART_SIZES.macdHeight,
+        false,
         false
       )
     );
@@ -289,6 +296,30 @@ const ChartContainer = ({ data }) => {
       macdChart.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!chartRefs.current.main || !chartRefs.current.macd) return;
+
+    const themeOptions = {
+      layout: {
+        background: { color: darkMode ? "#1a1a1a" : "#ffffff" },
+        textColor: darkMode ? "#e0e0e0" : "#333",
+      },
+      grid: {
+        vertLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
+        horzLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
+      },
+      rightPriceScale: {
+        borderColor: darkMode ? "#404040" : "#d1d4dc",
+      },
+      timeScale: {
+        borderColor: darkMode ? "#404040" : "#d1d4dc",
+      },
+    };
+
+    chartRefs.current.main.applyOptions(themeOptions);
+    chartRefs.current.macd.applyOptions(themeOptions);
+  }, [darkMode]);
 
   const klineData = useMemo(() => {
     if (!data?.klines) return [];

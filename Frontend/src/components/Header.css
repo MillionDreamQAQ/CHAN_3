@@ -1,10 +1,14 @@
 .app-header {
-  background: rgb(244, 244, 244);
+  background: var(--header-bg);
   padding: 12px 12px;
+  transition: background 0.3s ease;
 }
 
 .header-content {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .header-title {
@@ -28,4 +32,16 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.theme-toggle {
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+  transform: rotate(20deg);
 }

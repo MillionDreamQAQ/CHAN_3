@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { AutoComplete, DatePicker, Button, Select, Spin, message } from "antd";
+import { BulbOutlined, BulbFilled } from "@ant-design/icons";
 import dayjs from "dayjs";
 import axios from "axios";
 import Fuse from "fuse.js";
 import "./Header.css";
 
-const Header = ({ onQuery, loading }) => {
+const Header = ({ onQuery, loading, darkMode, onToggleDarkMode }) => {
   // baostock API只提供到昨天的数据
   const getYesterdayDate = () => {
     return dayjs().format("YYYY-MM-DD");
@@ -113,12 +114,23 @@ const Header = ({ onQuery, loading }) => {
   return (
     <header className="app-header">
       <div className="header-content">
+        <Button
+          type="text"
+          icon={darkMode ? <BulbFilled /> : <BulbOutlined />}
+          onClick={onToggleDarkMode}
+          className="theme-toggle"
+          title={darkMode ? "切换到日间模式" : "切换到夜间模式"}
+        />
         <form className="query-form" onSubmit={handleSubmit}>
           <div className="form-group">
             <Select
               value={klineType}
               onChange={setKlineType}
-              style={{ width: "100px" }}
+              style={{
+                width: "100px",
+                backgroundColor: darkMode ? "#333" : "#fff",
+                color: darkMode ? "#fff" : "#333",
+              }}
               options={[
                 { value: "day", label: "日线" },
                 { value: "week", label: "周线" },
@@ -139,7 +151,12 @@ const Header = ({ onQuery, loading }) => {
               onSelect={(value) => setCode(value)}
               onChange={(value) => setCode(value)}
               placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
-              style={{ width: "160px", height: "32px" }}
+              style={{
+                width: "160px",
+                height: "32px",
+                backgroundColor: darkMode ? "#333" : "#fff",
+                color: darkMode ? "#fff" : "#333",
+              }}
               notFoundContent={
                 stocksLoading ? <Spin size="small" /> : "无匹配结果"
               }
@@ -151,7 +168,11 @@ const Header = ({ onQuery, loading }) => {
               onChange={(date, dateString) => setBeginTime(dateString)}
               placeholder="选择开始时间"
               format="YYYY-MM-DD"
-              style={{ width: "120px" }}
+              style={{
+                width: "120px",
+                backgroundColor: darkMode ? "#333" : "#fff",
+                color: darkMode ? "#fff" : "#333",
+              }}
             />
           </div>
           <div className="form-group">
@@ -160,7 +181,11 @@ const Header = ({ onQuery, loading }) => {
               onChange={(date, dateString) => setEndTime(dateString)}
               placeholder="选择结束时间"
               format="YYYY-MM-DD"
-              style={{ width: "120px" }}
+              style={{
+                width: "120px",
+                backgroundColor: darkMode ? "#333" : "#fff",
+                color: darkMode ? "#fff" : "#333",
+              }}
             />
           </div>
           <Button
