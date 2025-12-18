@@ -112,20 +112,31 @@ const CHART_SIZES = {
 
 const ChartContainer = ({ data }) => {
   const [loading, setLoading] = useState(true);
-
-  const chartContainerRef = useRef(null);
-  const macdContainerRef = useRef(null);
-  const mainChartRef = useRef(null);
-  const macdChartRef = useRef(null);
-  const candlestickSeriesRef = useRef(null);
-  const lineSeriesListRef = useRef([]);
-  const macdSeriesListRef = useRef([]);
-  const histogramSeriesRef = useRef(null);
-  const tooltipRef = useRef(null);
-  const markersDataRef = useRef([]);
-  const seriesMarkersRef = useRef(null);
-  const klineDataRef = useRef([]);
   const [klineInfo, setKlineInfo] = useState(null);
+
+  const containerRefs = useRef({
+    main: null, // 主图表容器
+    macd: null, // MACD图表容器
+    tooltip: null, // 提示框容器
+  });
+
+  const chartRefs = useRef({
+    main: null, // 主图表实例
+    macd: null, // MACD图表实例
+  });
+
+  const seriesRefs = useRef({
+    candlestick: null, // K线系列
+    lineList: [], // 线段列表（bi、seg、zs）
+    macdList: [], // MACD系列列表
+    histogram: null, // MACD柱状图
+    markers: null, // 买卖点标记
+  });
+
+  const dataRefs = useRef({
+    kline: [], // K线数据
+    markers: [], // 标记数据
+  });
 
   const addLineSegments = (
     chart,
@@ -150,31 +161,31 @@ const ChartContainer = ({ data }) => {
   useEffect(() => {
     setLoading(true);
 
-    if (!chartContainerRef.current || !macdContainerRef.current) return;
+    if (!containerRefs.current.main || !containerRefs.current.macd) return;
 
     const containerWidth =
-      chartContainerRef.current.parentElement?.clientWidth ||
-      chartContainerRef.current.clientWidth;
+      containerRefs.current.main.parentElement?.clientWidth ||
+      containerRefs.current.main.clientWidth;
 
     const mainChart = createChart(
-      chartContainerRef.current,
+      containerRefs.current.main,
       getChartConfig(
         containerWidth,
-        chartContainerRef.current.clientHeight || CHART_SIZES.mainHeight,
+        containerRefs.current.main.clientHeight || CHART_SIZES.mainHeight,
         true
       )
     );
-    mainChartRef.current = mainChart;
+    chartRefs.current.main = mainChart;
 
     const macdChart = createChart(
-      macdContainerRef.current,
+      containerRefs.current.macd,
       getChartConfig(
         containerWidth,
-        macdContainerRef.current.clientHeight || CHART_SIZES.macdHeight,
+        containerRefs.current.macd.clientHeight || CHART_SIZES.macdHeight,
         false
       )
     );
-    macdChartRef.current = macdChart;
+    chartRefs.current.macd = macdChart;
 
     const candlestickSeries = mainChart.addSeries(CandlestickSeries, {
       upColor: COLORS.upColor,
@@ -183,32 +194,32 @@ const ChartContainer = ({ data }) => {
       wickUpColor: COLORS.upColor,
       wickDownColor: COLORS.downColor,
     });
-    candlestickSeriesRef.current = candlestickSeries;
+    seriesRefs.current.candlestick = candlestickSeries;
 
     const handleResize = () => {
       const resizeWidth =
-        chartContainerRef.current?.parentElement?.clientWidth ||
-        chartContainerRef.current?.clientWidth;
+        containerRefs.current.main?.parentElement?.clientWidth ||
+        containerRefs.current.main?.clientWidth;
 
-      if (chartContainerRef.current && resizeWidth) {
+      if (containerRefs.current.main && resizeWidth) {
         mainChart.applyOptions({
           width: resizeWidth,
-          height: chartContainerRef.current.clientHeight,
+          height: containerRefs.current.main.clientHeight,
         });
       }
-      if (macdContainerRef.current && resizeWidth) {
+      if (containerRefs.current.macd && resizeWidth) {
         macdChart.applyOptions({
           width: resizeWidth,
-          height: macdContainerRef.current.clientHeight,
+          height: containerRefs.current.macd.clientHeight,
         });
       }
     };
 
     mainChart.subscribeCrosshairMove((param) => {
-      if (param.time && candlestickSeriesRef.current) {
-        const data = param.seriesData.get(candlestickSeriesRef.current);
+      if (param.time && seriesRefs.current.candlestick) {
+        const data = param.seriesData.get(seriesRefs.current.candlestick);
         if (data) {
-          const originalKline = klineDataRef.current.find(
+          const originalKline = dataRefs.current.kline.find(
             (k) => k.time === param.time
           );
 
@@ -222,9 +233,9 @@ const ChartContainer = ({ data }) => {
           });
         }
       } else {
-        if (klineDataRef.current.length > 0) {
+        if (dataRefs.current.kline.length > 0) {
           const lastKline =
-            klineDataRef.current[klineDataRef.current.length - 1];
+            dataRefs.current.kline[dataRefs.current.kline.length - 1];
           setKlineInfo({
             time: lastKline.time,
             open: lastKline.open,
@@ -237,31 +248,33 @@ const ChartContainer = ({ data }) => {
       }
 
       if (
-        !tooltipRef.current ||
+        !containerRefs.current.tooltip ||
         !param.time ||
-        !markersDataRef.current.length
+        !dataRefs.current.markers.length
       ) {
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = "none";
+        if (containerRefs.current.tooltip) {
+          containerRefs.current.tooltip.style.display = "none";
         }
         return;
       }
 
-      const marker = markersDataRef.current.find((m) => m.time === param.time);
+      const marker = dataRefs.current.markers.find(
+        (m) => m.time === param.time
+      );
 
       if (marker && marker.tooltip) {
-        const coordinate = candlestickSeriesRef.current.priceToCoordinate(
-          param.seriesData.get(candlestickSeriesRef.current)?.close || 0
+        const coordinate = seriesRefs.current.candlestick.priceToCoordinate(
+          param.seriesData.get(seriesRefs.current.candlestick)?.close || 0
         );
 
         if (coordinate !== null) {
-          tooltipRef.current.style.display = "block";
-          tooltipRef.current.style.left = param.point.x + 10 + "px";
-          tooltipRef.current.style.top = coordinate - 30 + "px";
-          tooltipRef.current.innerHTML = marker.tooltip;
+          containerRefs.current.tooltip.style.display = "block";
+          containerRefs.current.tooltip.style.left = param.point.x + 10 + "px";
+          containerRefs.current.tooltip.style.top = coordinate - 30 + "px";
+          containerRefs.current.tooltip.innerHTML = marker.tooltip;
         }
       } else {
-        tooltipRef.current.style.display = "none";
+        containerRefs.current.tooltip.style.display = "none";
       }
     });
 
@@ -269,8 +282,8 @@ const ChartContainer = ({ data }) => {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (seriesMarkersRef.current) {
-        seriesMarkersRef.current.detach();
+      if (seriesRefs.current.markers) {
+        seriesRefs.current.markers.detach();
       }
       mainChart.remove();
       macdChart.remove();
@@ -290,13 +303,13 @@ const ChartContainer = ({ data }) => {
   }, [data?.klines]);
 
   useEffect(() => {
-    if (!data || !candlestickSeriesRef.current) return;
+    if (!data || !seriesRefs.current.candlestick) return;
 
     setLoading(true);
 
-    klineDataRef.current = klineData;
+    dataRefs.current.kline = klineData;
 
-    candlestickSeriesRef.current.setData(klineData);
+    seriesRefs.current.candlestick.setData(klineData);
 
     if (klineData.length > 0) {
       const lastKline = klineData[klineData.length - 1];
@@ -310,14 +323,14 @@ const ChartContainer = ({ data }) => {
       });
     }
 
-    lineSeriesListRef.current.forEach((series) => {
-      mainChartRef.current.removeSeries(series);
+    seriesRefs.current.lineList.forEach((series) => {
+      chartRefs.current.main.removeSeries(series);
     });
-    lineSeriesListRef.current = [];
+    seriesRefs.current.lineList = [];
 
-    if (mainChartRef.current) {
+    if (chartRefs.current.main) {
       const biSeries = addLineSegments(
-        mainChartRef.current,
+        chartRefs.current.main,
         data.bi_list,
         LINE_SERIES_CONFIGS.bi,
         convertToUnixTimestamp,
@@ -326,10 +339,10 @@ const ChartContainer = ({ data }) => {
           { time: convertTime(bi.end_time), value: bi.end_value },
         ]
       );
-      lineSeriesListRef.current.push(...biSeries);
+      seriesRefs.current.lineList.push(...biSeries);
 
       const segSeries = addLineSegments(
-        mainChartRef.current,
+        chartRefs.current.main,
         data.seg_list,
         LINE_SERIES_CONFIGS.seg,
         convertToUnixTimestamp,
@@ -338,12 +351,12 @@ const ChartContainer = ({ data }) => {
           { time: convertTime(seg.end_time), value: seg.end_value },
         ]
       );
-      lineSeriesListRef.current.push(...segSeries);
+      seriesRefs.current.lineList.push(...segSeries);
 
       if (data.zs_list && data.zs_list.length > 0) {
         data.zs_list.forEach((zs) => {
           const zsTopSeries = addLineSegments(
-            mainChartRef.current,
+            chartRefs.current.main,
             [zs],
             LINE_SERIES_CONFIGS.zs,
             convertToUnixTimestamp,
@@ -354,7 +367,7 @@ const ChartContainer = ({ data }) => {
           );
 
           const zsBottomSeries = addLineSegments(
-            mainChartRef.current,
+            chartRefs.current.main,
             [zs],
             LINE_SERIES_CONFIGS.zs,
             convertToUnixTimestamp,
@@ -364,14 +377,14 @@ const ChartContainer = ({ data }) => {
             ]
           );
 
-          lineSeriesListRef.current.push(...zsTopSeries, ...zsBottomSeries);
+          seriesRefs.current.lineList.push(...zsTopSeries, ...zsBottomSeries);
         });
       }
     }
 
-    if (seriesMarkersRef.current) {
-      seriesMarkersRef.current.detach();
-      seriesMarkersRef.current = null;
+    if (seriesRefs.current.markers) {
+      seriesRefs.current.markers.detach();
+      seriesRefs.current.markers = null;
     }
 
     if (data.bs_points && data.bs_points.length > 0) {
@@ -395,21 +408,21 @@ const ChartContainer = ({ data }) => {
       });
 
       bsMarkers.sort((a, b) => new Date(a.time) - new Date(b.time));
-      markersDataRef.current = bsMarkers;
+      dataRefs.current.markers = bsMarkers;
 
-      seriesMarkersRef.current = createSeriesMarkers(
-        candlestickSeriesRef.current,
+      seriesRefs.current.markers = createSeriesMarkers(
+        seriesRefs.current.candlestick,
         bsMarkers
       );
     } else {
-      markersDataRef.current = [];
+      dataRefs.current.markers = [];
     }
 
-    if (macdChartRef.current) {
-      macdSeriesListRef.current.forEach((series) => {
-        macdChartRef.current.removeSeries(series);
+    if (chartRefs.current.macd) {
+      seriesRefs.current.macdList.forEach((series) => {
+        chartRefs.current.macd.removeSeries(series);
       });
-      macdSeriesListRef.current = [];
+      seriesRefs.current.macdList = [];
 
       if (data.klines && data.klines.length >= MACD_CONFIG.minDataLength) {
         const macdData = calculateMACD(data.klines);
@@ -419,7 +432,7 @@ const ChartContainer = ({ data }) => {
           macdData.dif.length > 0 &&
           macdData.dea.length > 0
         ) {
-          const macdHistogramSeries = macdChartRef.current.addSeries(
+          const macdHistogramSeries = chartRefs.current.macd.addSeries(
             HistogramSeries,
             {
               color: COLORS.downColor,
@@ -432,22 +445,22 @@ const ChartContainer = ({ data }) => {
               lastValueVisible: true,
             }
           );
-          histogramSeriesRef.current = macdHistogramSeries;
+          seriesRefs.current.histogram = macdHistogramSeries;
           macdHistogramSeries.setData(macdData.histogram);
 
-          const difLineSeries = macdChartRef.current.addSeries(
+          const difLineSeries = chartRefs.current.macd.addSeries(
             LineSeries,
             LINE_SERIES_CONFIGS.dif
           );
           difLineSeries.setData(macdData.dif);
 
-          const deaLineSeries = macdChartRef.current.addSeries(
+          const deaLineSeries = chartRefs.current.macd.addSeries(
             LineSeries,
             LINE_SERIES_CONFIGS.dea
           );
           deaLineSeries.setData(macdData.dea);
 
-          const zeroLineSeries = macdChartRef.current.addSeries(
+          const zeroLineSeries = chartRefs.current.macd.addSeries(
             LineSeries,
             LINE_SERIES_CONFIGS.zero
           );
@@ -457,7 +470,7 @@ const ChartContainer = ({ data }) => {
           }));
           zeroLineSeries.setData(zeroLineData);
 
-          macdSeriesListRef.current.push(
+          seriesRefs.current.macdList.push(
             macdHistogramSeries,
             difLineSeries,
             deaLineSeries,
@@ -471,85 +484,95 @@ const ChartContainer = ({ data }) => {
   }, [data, klineData]);
 
   const handleMainCrosshairMove = useCallback((param) => {
-    if (param.time && histogramSeriesRef.current && macdChartRef.current) {
-      const macdHistogramData = histogramSeriesRef.current.dataByIndex(
+    if (param.time && seriesRefs.current.histogram && chartRefs.current.macd) {
+      const macdHistogramData = seriesRefs.current.histogram.dataByIndex(
         param.logical
       );
 
       if (macdHistogramData) {
-        macdChartRef.current.setCrosshairPosition(
+        chartRefs.current.macd.setCrosshairPosition(
           macdHistogramData.value,
           param.time,
-          histogramSeriesRef.current
+          seriesRefs.current.histogram
         );
       }
-    } else if (macdChartRef.current) {
-      macdChartRef.current.clearCrosshairPosition();
+    } else if (chartRefs.current.macd) {
+      chartRefs.current.macd.clearCrosshairPosition();
     }
   }, []);
 
   const handleMACDCrosshairMove = useCallback((param) => {
-    if (param.time && candlestickSeriesRef.current && mainChartRef.current) {
-      const klineData = candlestickSeriesRef.current.dataByIndex(param.logical);
+    if (
+      param.time &&
+      seriesRefs.current.candlestick &&
+      chartRefs.current.main
+    ) {
+      const klineData = seriesRefs.current.candlestick.dataByIndex(
+        param.logical
+      );
 
       if (klineData) {
-        mainChartRef.current.setCrosshairPosition(
+        chartRefs.current.main.setCrosshairPosition(
           klineData.close,
           param.time,
-          candlestickSeriesRef.current
+          seriesRefs.current.candlestick
         );
       }
-    } else if (mainChartRef.current) {
-      mainChartRef.current.clearCrosshairPosition();
+    } else if (chartRefs.current.main) {
+      chartRefs.current.main.clearCrosshairPosition();
     }
   }, []);
 
   const syncTimeFromMain = useCallback(() => {
-    if (mainChartRef.current && macdChartRef.current) {
-      const mainRange = mainChartRef.current
+    if (chartRefs.current.main && chartRefs.current.macd) {
+      const mainRange = chartRefs.current.main
         .timeScale()
         .getVisibleLogicalRange();
       if (mainRange) {
-        macdChartRef.current.timeScale().setVisibleLogicalRange(mainRange);
+        chartRefs.current.macd.timeScale().setVisibleLogicalRange(mainRange);
       }
     }
   }, []);
 
   const syncTimeFromMacd = useCallback(() => {
-    if (macdChartRef.current && mainChartRef.current) {
-      const macdRange = macdChartRef.current
+    if (chartRefs.current.macd && chartRefs.current.main) {
+      const macdRange = chartRefs.current.macd
         .timeScale()
         .getVisibleLogicalRange();
       if (macdRange) {
-        mainChartRef.current.timeScale().setVisibleLogicalRange(macdRange);
+        chartRefs.current.main.timeScale().setVisibleLogicalRange(macdRange);
       }
     }
   }, []);
 
   useEffect(() => {
-    if (!mainChartRef.current || !macdChartRef.current) return;
+    if (!chartRefs.current.main || !chartRefs.current.macd) return;
 
-    mainChartRef.current.subscribeCrosshairMove(handleMainCrosshairMove);
-    macdChartRef.current.subscribeCrosshairMove(handleMACDCrosshairMove);
+    chartRefs.current.main.subscribeCrosshairMove(handleMainCrosshairMove);
+    chartRefs.current.macd.subscribeCrosshairMove(handleMACDCrosshairMove);
 
-    mainChartRef.current
+    chartRefs.current.main
       .timeScale()
       .subscribeVisibleLogicalRangeChange(syncTimeFromMain);
-    macdChartRef.current
+    chartRefs.current.macd
       .timeScale()
       .subscribeVisibleLogicalRangeChange(syncTimeFromMacd);
 
     return () => {
-      if (mainChartRef.current) {
-        mainChartRef.current.unsubscribeCrosshairMove(handleMainCrosshairMove);
-        mainChartRef.current
+      if (chartRefs.current.main) {
+        chartRefs.current.main.unsubscribeCrosshairMove(
+          handleMainCrosshairMove
+        );
+        chartRefs.current.main
           .timeScale()
           .unsubscribeVisibleLogicalRangeChange(syncTimeFromMain);
       }
 
-      if (macdChartRef.current) {
-        macdChartRef.current.unsubscribeCrosshairMove(handleMACDCrosshairMove);
-        macdChartRef.current
+      if (chartRefs.current.macd) {
+        chartRefs.current.macd.unsubscribeCrosshairMove(
+          handleMACDCrosshairMove
+        );
+        chartRefs.current.macd
           .timeScale()
           .unsubscribeVisibleLogicalRangeChange(syncTimeFromMacd);
       }
@@ -569,7 +592,10 @@ const ChartContainer = ({ data }) => {
           <p>图表数据加载中...</p>
         </div>
       )}
-      <div className="chart-wrapper" ref={chartContainerRef}>
+      <div
+        className="chart-wrapper"
+        ref={(el) => (containerRefs.current.main = el)}
+      >
         {data && (data.name || data.code) && (
           <div className="stock-title">
             <span className="stock-name">{data.name || "未知股票"}</span>
@@ -623,7 +649,7 @@ const ChartContainer = ({ data }) => {
           </div>
         )}
         <div
-          ref={tooltipRef}
+          ref={(el) => (containerRefs.current.tooltip = el)}
           style={{
             position: "absolute",
             display: "none",
@@ -639,7 +665,10 @@ const ChartContainer = ({ data }) => {
           }}
         />
       </div>
-      <div className="macd-wrapper" ref={macdContainerRef} />
+      <div
+        className="macd-wrapper"
+        ref={(el) => (containerRefs.current.macd = el)}
+      />
     </div>
   );
 };
