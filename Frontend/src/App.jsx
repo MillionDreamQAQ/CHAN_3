@@ -13,15 +13,20 @@ function App() {
     return saved === "true";
   });
 
-  const [indicators, setIndicators] = useState({
-    ma5: true,
-    ma10: true,
-    ma20: true,
-    ma30: true,
-    bi: true,
-    seg: true,
-    zs: true,
-    bsPoints: true,
+  const [indicators, setIndicators] = useState(() => {
+    const saved = localStorage.getItem("indicators");
+    return saved
+      ? JSON.parse(saved)
+      : {
+          ma5: true,
+          ma10: true,
+          ma20: true,
+          ma30: true,
+          bi: true,
+          seg: true,
+          zs: true,
+          bsPoints: true,
+        };
   });
 
   useEffect(() => {
@@ -32,6 +37,10 @@ function App() {
     }
     localStorage.setItem("darkMode", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    localStorage.setItem("indicators", JSON.stringify(indicators));
+  }, [indicators]);
 
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
