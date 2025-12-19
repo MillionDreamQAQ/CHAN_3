@@ -23,9 +23,11 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(f"batch_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler(
+            f"batch_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        ),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -82,11 +84,9 @@ class BatchStockDataImporter:
 
                 stock_list = []
                 for stock in stocks:
-                    stock_list.append({
-                        'code': stock[0],
-                        'name': stock[1],
-                        'list_date': stock[2]
-                    })
+                    stock_list.append(
+                        {"code": stock[0], "name": stock[1], "list_date": stock[2]}
+                    )
 
                 logger.info("成功获取 %d 只股票（已排除北交所）", len(stock_list))
                 return stock_list
@@ -108,7 +108,9 @@ class BatchStockDataImporter:
         # 数据库中的 code 已经是完整格式（sh./sz./bj.），直接返回
         return code
 
-    def calculate_start_date(self, list_date: Optional[str], default_years: int = 5) -> str:
+    def calculate_start_date(
+        self, list_date: Optional[str], default_years: int = 5
+    ) -> str:
         """
         计算开始日期
 
@@ -125,17 +127,23 @@ class BatchStockDataImporter:
         if list_date:
             # 如果有上市日期，取上市日期和默认日期中较晚的
             if isinstance(list_date, str):
-                list_dt = datetime.strptime(list_date, '%Y-%m-%d')
+                list_dt = datetime.strptime(list_date, "%Y-%m-%d")
             else:
                 list_dt = list_date
 
-            start_date = max(list_dt, default_start)
+            # convert list_dt to datetime if it's not already
+            if not isinstance(list_dt, datetime):
+                list_dt = datetime.strptime(list_dt.strftime("%Y-%m-%d"), "%Y-%m-%d")
+
+            start_date = min(list_dt, default_start)
         else:
             start_date = default_start
 
-        return start_date.strftime('%Y-%m-%d')
+        return start_date.strftime("%Y-%m-%d")
 
-    def fetch_kline_data(self, code: str, start_date: str, end_date: str, frequency: str) -> Optional[pd.DataFrame]:
+    def fetch_kline_data(
+        self, code: str, start_date: str, end_date: str, frequency: str
+    ) -> Optional[pd.DataFrame]:
         """
         从 baostock 获取K线数据
 
@@ -161,7 +169,13 @@ class BatchStockDataImporter:
             )
 
             if rs.error_code != "0":
-                logger.error("查询失败: %s", rs.error_msg)
+                if "登录" in rs.error_msg or "login" in rs.error_msg.lower():
+                    logger.error(
+                        "查询失败: %s [可能是登录会话过期，将在下次重新登录]",
+                        rs.error_msg,
+                    )
+                else:
+                    logger.error("查询失败: %s", rs.error_msg)
                 return None
 
             # 获取数据
@@ -177,7 +191,15 @@ class BatchStockDataImporter:
             df = pd.DataFrame(data_list, columns=rs.fields)
 
             # 数据类型转换
-            numeric_columns = ["open", "high", "low", "close", "volume", "amount", "turn"]
+            numeric_columns = [
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "amount",
+                "turn",
+            ]
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -218,17 +240,19 @@ class BatchStockDataImporter:
             # 准备数据
             records = []
             for _, row in df.iterrows():
-                records.append((
-                    row["date"],
-                    row["code"],
-                    float(row["open"]) if pd.notna(row["open"]) else None,
-                    float(row["high"]) if pd.notna(row["high"]) else None,
-                    float(row["low"]) if pd.notna(row["low"]) else None,
-                    float(row["close"]) if pd.notna(row["close"]) else None,
-                    int(row["volume"]) if pd.notna(row["volume"]) else None,
-                    float(row["amount"]) if pd.notna(row["amount"]) else None,
-                    float(row["turn"]) if pd.notna(row["turn"]) else None,
-                ))
+                records.append(
+                    (
+                        row["date"],
+                        row["code"],
+                        float(row["open"]) if pd.notna(row["open"]) else None,
+                        float(row["high"]) if pd.notna(row["high"]) else None,
+                        float(row["low"]) if pd.notna(row["low"]) else None,
+                        float(row["close"]) if pd.notna(row["close"]) else None,
+                        int(row["volume"]) if pd.notna(row["volume"]) else None,
+                        float(row["amount"]) if pd.notna(row["amount"]) else None,
+                        float(row["turn"]) if pd.notna(row["turn"]) else None,
+                    )
+                )
 
             # 批量插入
             cursor.executemany(insert_sql, records)
@@ -241,7 +265,9 @@ class BatchStockDataImporter:
             logger.error("保存数据到 %s 失败: %s", table_name, e)
             return False
 
-    def import_single_stock(self, stock_info: Dict, start_date: str, end_date: str) -> Dict:
+    def import_single_stock(
+        self, stock_info: Dict, start_date: str, end_date: str
+    ) -> Dict:
         """
         导入单个股票的数据
 
@@ -253,21 +279,23 @@ class BatchStockDataImporter:
         Returns:
             dict: 导入结果
         """
-        code = stock_info['code']
-        name = stock_info['name']
+        code = stock_info["code"]
+        name = stock_info["name"]
 
         # 格式化股票代码
         bs_code = self.format_stock_code(code)
 
-        logger.info("\n处理股票: %s (%s) - %s 至 %s", name, bs_code, start_date, end_date)
+        logger.info(
+            "\n处理股票: %s (%s) - %s 至 %s", name, bs_code, start_date, end_date
+        )
 
         results = {
-            'code': code,
-            'name': name,
-            'success': False,
-            'daily': {'success': False, 'count': 0},
-            'weekly': {'success': False, 'count': 0},
-            'monthly': {'success': False, 'count': 0}
+            "code": code,
+            "name": name,
+            "success": False,
+            "daily": {"success": False, "count": 0},
+            "weekly": {"success": False, "count": 0},
+            "monthly": {"success": False, "count": 0},
         }
 
         try:
@@ -279,45 +307,52 @@ class BatchStockDataImporter:
                 # 导入日K线数据
                 df_daily = self.fetch_kline_data(bs_code, start_date, end_date, "d")
                 if df_daily is not None:
-                    results['daily']['success'] = self.save_to_database(
+                    results["daily"]["success"] = self.save_to_database(
                         df_daily, "stock_kline_daily", db.conn, db.cursor
                     )
-                    results['daily']['count'] = len(df_daily)
+                    results["daily"]["count"] = len(df_daily)
                     logger.info("  日K线: %d 条", len(df_daily))
 
                 # 导入周K线数据
                 df_weekly = self.fetch_kline_data(bs_code, start_date, end_date, "w")
                 if df_weekly is not None:
-                    results['weekly']['success'] = self.save_to_database(
+                    results["weekly"]["success"] = self.save_to_database(
                         df_weekly, "stock_kline_weekly", db.conn, db.cursor
                     )
-                    results['weekly']['count'] = len(df_weekly)
+                    results["weekly"]["count"] = len(df_weekly)
                     logger.info("  周K线: %d 条", len(df_weekly))
 
                 # 导入月K线数据
                 df_monthly = self.fetch_kline_data(bs_code, start_date, end_date, "m")
                 if df_monthly is not None:
-                    results['monthly']['success'] = self.save_to_database(
+                    results["monthly"]["success"] = self.save_to_database(
                         df_monthly, "stock_kline_monthly", db.conn, db.cursor
                     )
-                    results['monthly']['count'] = len(df_monthly)
+                    results["monthly"]["count"] = len(df_monthly)
                     logger.info("  月K线: %d 条", len(df_monthly))
 
                 # 判断整体是否成功（至少一个频率成功）
-                results['success'] = (
-                    results['daily']['success'] or
-                    results['weekly']['success'] or
-                    results['monthly']['success']
+                results["success"] = (
+                    results["daily"]["success"]
+                    or results["weekly"]["success"]
+                    or results["monthly"]["success"]
                 )
 
         except Exception as e:
             logger.error("导入股票 %s (%s) 失败: %s", name, code, e)
-            results['success'] = False
+            results["success"] = False
 
         return results
 
-    def batch_import(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                     delay: float = 0.5, max_stocks: Optional[int] = None):
+    def batch_import(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        delay: float = 0.5,
+        max_stocks: Optional[int] = None,
+        relogin_interval: int = 50,
+        start_index: int = 0,
+    ):
         """
         批量导入所有股票数据
 
@@ -326,28 +361,53 @@ class BatchStockDataImporter:
             end_date: 结束日期，格式 YYYY-MM-DD，默认为今天
             delay: 每个股票之间的延迟时间（秒），避免请求过快
             max_stocks: 最多处理的股票数量，用于测试，None 表示处理所有
+            relogin_interval: 每处理多少只股票后重新登录，默认 50
+            start_index: 从第几只股票开始处理（0-based），用于中断后续传，默认 0
         """
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("开始批量导入股票数据")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         # 设置结束日期
         if end_date is None:
-            end_date = datetime.now().strftime('%Y-%m-%d')
+            end_date = datetime.now().strftime("%Y-%m-%d")
 
         # 获取所有股票
-        stocks = self.get_all_stocks()
-        if not stocks:
+        all_stocks = self.get_all_stocks()
+        if not all_stocks:
             logger.error("没有获取到股票列表，退出")
             return
+
+        total_stocks = len(all_stocks)
+
+        # 验证 start_index
+        if start_index < 0:
+            logger.error("start_index 不能为负数")
+            return
+        if start_index >= total_stocks:
+            logger.error(
+                "start_index (%d) 超出股票总数 (%d)", start_index, total_stocks
+            )
+            return
+
+        # 从指定位置开始切片
+        stocks = all_stocks[start_index:]
 
         # 限制处理数量（用于测试）
         if max_stocks:
             stocks = stocks[:max_stocks]
-            logger.info("测试模式：只处理前 %d 只股票", max_stocks)
+            logger.info(
+                "测试模式：处理 %d 只股票（从第 %d 只开始）",
+                len(stocks),
+                start_index + 1,
+            )
+        elif start_index > 0:
+            logger.info(
+                "续传模式：从第 %d 只股票开始，剩余 %d 只", start_index + 1, len(stocks)
+            )
 
         total = len(stocks)
-        logger.info("准备导入 %d 只股票的数据", total)
+        logger.info("准备导入 %d 只股票的数据（总共 %d 只）", total, total_stocks)
 
         # 登录 baostock
         if not self.login_baostock():
@@ -360,31 +420,57 @@ class BatchStockDataImporter:
         # 遍历所有股票
         for idx, stock in enumerate(stocks, 1):
             try:
+                # 计算全局索引（显示用）
+                global_idx = start_index + idx
+
+                # 定期重新登录，保持会话活跃
+                if (idx - 1) % relogin_interval == 0 and idx > 1:
+                    logger.info(
+                        "\n>>> 已处理 %d 只股票，重新登录 baostock 以保持会话...",
+                        idx - 1,
+                    )
+                    self.logout_baostock()
+                    time.sleep(1)  # 等待1秒再重新登录
+                    if not self.login_baostock():
+                        logger.error("重新登录失败，程序终止")
+                        break
+                    logger.info(">>> 重新登录成功，继续处理...\n")
+
                 # 计算开始日期
                 stock_start_date = start_date
                 if stock_start_date is None:
-                    stock_start_date = self.calculate_start_date(stock.get('list_date'))
+                    stock_start_date = self.calculate_start_date(stock.get("list_date"))
 
-                logger.info("\n[%d/%d] 开始处理...", idx, total)
+                logger.info(
+                    "\n[%d/%d] (全局 %d/%d) 开始处理...",
+                    idx,
+                    total,
+                    global_idx,
+                    total_stocks,
+                )
 
                 # 导入单个股票
                 result = self.import_single_stock(stock, stock_start_date, end_date)
 
                 # 统计结果
-                if result['success']:
+                if result["success"]:
                     self.success_count += 1
-                    logger.info("成功: %s (%s)", result['name'], result['code'])
+                    logger.info("成功: %s (%s)", result["name"], result["code"])
                 else:
                     self.failed_count += 1
-                    self.failed_stocks.append({
-                        'code': result['code'],
-                        'name': result['name']
-                    })
-                    logger.warning("失败: %s (%s)", result['name'], result['code'])
+                    self.failed_stocks.append(
+                        {"code": result["code"], "name": result["name"]}
+                    )
+                    logger.warning("失败: %s (%s)", result["name"], result["code"])
 
                 # 进度提示
-                logger.info("进度: %d/%d (成功: %d, 失败: %d)",
-                           idx, total, self.success_count, self.failed_count)
+                logger.info(
+                    "进度: %d/%d (成功: %d, 失败: %d)",
+                    idx,
+                    total,
+                    self.success_count,
+                    self.failed_count,
+                )
 
                 # 延迟，避免请求过快
                 if idx < total:
@@ -402,9 +488,9 @@ class BatchStockDataImporter:
         elapsed_time = time.time() - start_time
 
         # 输出最终统计
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("批量导入完成！")
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("总计: %d 只股票", total)
         logger.info("成功: %d 只", self.success_count)
         logger.info("失败: %d 只", self.failed_count)
@@ -414,20 +500,41 @@ class BatchStockDataImporter:
         if self.failed_stocks:
             logger.info("\n失败的股票列表:")
             for stock in self.failed_stocks:
-                logger.info("  - %s (%s)", stock['name'], stock['code'])
+                logger.info("  - %s (%s)", stock["name"], stock["code"])
 
-        logger.info("="*80)
+        logger.info("=" * 80)
 
 
 def main():
     """主函数"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='批量导入所有股票的K线数据')
-    parser.add_argument('--start-date', type=str, help='开始日期 (YYYY-MM-DD)，不指定则从上市日期开始')
-    parser.add_argument('--end-date', type=str, help='结束日期 (YYYY-MM-DD)，默认为今天')
-    parser.add_argument('--delay', type=float, default=0.5, help='每个股票之间的延迟时间（秒），默认 0.5')
-    parser.add_argument('--max-stocks', type=int, help='最多处理的股票数量，用于测试')
+    parser = argparse.ArgumentParser(description="批量导入所有股票的K线数据")
+    parser.add_argument(
+        "--start-date", type=str, help="开始日期 (YYYY-MM-DD)，不指定则从上市日期开始"
+    )
+    parser.add_argument(
+        "--end-date", type=str, help="结束日期 (YYYY-MM-DD)，默认为今天"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.5,
+        help="每个股票之间的延迟时间（秒），默认 0.5",
+    )
+    parser.add_argument("--max-stocks", type=int, help="最多处理的股票数量，用于测试")
+    parser.add_argument(
+        "--relogin-interval",
+        type=int,
+        default=300,
+        help="每处理多少只股票后重新登录，默认 300",
+    )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="从第几只股票开始处理（0-based），用于中断后续传，默认 0",
+    )
 
     args = parser.parse_args()
 
@@ -439,7 +546,10 @@ def main():
         start_date=args.start_date,
         end_date=args.end_date,
         delay=args.delay,
-        max_stocks=args.max_stocks
+        max_stocks=args.max_stocks,
+        relogin_interval=args.relogin_interval,
+        # start_index=args.start_index,
+        start_index=477,
     )
 
 
