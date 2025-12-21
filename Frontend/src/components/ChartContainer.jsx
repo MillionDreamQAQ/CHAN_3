@@ -39,6 +39,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
 
   const seriesRefs = useRef({
     candlestick: null,
+    volume: null,
     bi: [],
     seg: [],
     zs: [],
@@ -112,6 +113,22 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       wickDownColor: COLORS.downColor,
     });
     seriesRefs.current.candlestick = candlestickSeries;
+
+    const volumeSeries = mainChart.addSeries(HistogramSeries, {
+      priceScaleId: "volume",
+      priceFormat: {
+        type: "volume",
+      },
+      color: COLORS.downColor,
+    });
+    seriesRefs.current.volume = volumeSeries;
+
+    mainChart.priceScale("volume").applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
 
     const handleResize = () => {
       const resizeWidth =
@@ -258,6 +275,18 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
 
     dataRefs.current.kline = klineData;
     seriesRefs.current.candlestick.setData(klineData);
+
+    if (seriesRefs.current.volume) {
+      const volumeData = klineData.map((k) => ({
+        time: k.time,
+        value: k.volume,
+        color:
+          k.close >= k.open
+            ? `${COLORS.upColor}4d`
+            : `${COLORS.downColor}4d`,
+      }));
+      seriesRefs.current.volume.setData(volumeData);
+    }
 
     if (klineData.length > 0) {
       const lastIndex = klineData.length - 1;
