@@ -114,6 +114,17 @@ const Header = ({
       message.warning("请选择开始时间");
       return;
     }
+    if (code.startsWith("sh.000") || code.startsWith("sz.399")) {
+      if (
+        klineType === "5m" ||
+        klineType === "15m" ||
+        klineType === "30m" ||
+        klineType === "60m"
+      ) {
+        message.warning("指数不支持分钟线查询");
+        return;
+      }
+    }
     onQuery({
       code,
       kline_type: klineType,
