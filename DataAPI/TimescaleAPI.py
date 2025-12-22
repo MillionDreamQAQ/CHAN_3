@@ -124,6 +124,8 @@ class CTimescaleStockAPI(CCommonStockApi):
     # K线类型映射（用于实时数据获取）
     KLINE_TYPE_MAP = {
         KL_TYPE.K_DAY: "daily",
+        KL_TYPE.K_WEEK: "weekly",
+        KL_TYPE.K_MON: "monthly",
         KL_TYPE.K_60M: "60min",
         KL_TYPE.K_30M: "30min",
         KL_TYPE.K_15M: "15min",
