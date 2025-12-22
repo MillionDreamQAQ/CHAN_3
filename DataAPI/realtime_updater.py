@@ -140,8 +140,7 @@ class RealtimeDataUpdater:
         智能更新分钟K线
 
         策略：
-        - 对于30/60分钟线：从1分钟数据聚合（因为AkShare的30/60分钟数据时间点不准确）
-        - 对于5/15分钟线：直接使用AkShare的聚合数据
+        - 直接使用AkShare的聚合数据（数据准确，时间戳为K线结束时间）
 
         Args:
             code: 完整股票代码（如 sh.600519）
@@ -153,13 +152,9 @@ class RealtimeDataUpdater:
         period = RealtimeDataUpdater.PERIOD_MAP[kline_type]
         minutes = int(kline_type.replace("min", ""))
 
-        # 对于30/60分钟线，使用period='1'获取1分钟数据自己聚合
-        # 因为AkShare的30/60分钟数据时间点可能不准确
-        fetch_period = "1" if minutes >= 30 else period
-
-        # 从 AkShare 获取分钟数据
+        # 直接使用AkShare的聚合数据
         df = ak.stock_zh_a_hist_min_em(
-            symbol=pure_code, period=fetch_period, adjust="qfq"
+            symbol=pure_code, period=period, adjust="qfq"
         )
 
         if df.empty:
@@ -168,50 +163,44 @@ class RealtimeDataUpdater:
 
         df["时间"] = pd.to_datetime(df["时间"])
         today = datetime.now().date()
-        all_kline_times = KLineTimeRules.get_all_kline_times(kline_type, today)
 
         finished_count = 0
         ongoing_count = 0
 
-        # 逐根K线处理
-        for kline_start in all_kline_times:
-            kline_end = kline_start + timedelta(minutes=minutes)
+        # 只处理当天的数据
+        df_today = df[df["时间"].dt.date == today]
 
-            # 过滤出这根K线时间段内的数据
-            mask = (df["时间"] >= kline_start) & (df["时间"] < kline_end)
-            kline_data_df = df[mask]
+        # 遍历AkShare返回的每根K线
+        for idx, row in df_today.iterrows():
+            kline_end_time = row["时间"]  # AkShare返回的是K线结束时间
 
-            if kline_data_df.empty:
-                # 这根K线还没有数据（可能还没开始）
-                continue
-
-            # 聚合数据（OHLC + 成交量/成交额）
+            # K线数据
             kline_data = {
-                "open": float(kline_data_df.iloc[0]["开盘"]),
-                "high": float(kline_data_df["最高"].max()),
-                "low": float(kline_data_df["最低"].min()),
-                "close": float(kline_data_df.iloc[-1]["收盘"]),
-                "volume": int(kline_data_df["成交量"].sum()),
-                "amount": float(kline_data_df["成交额"].sum()),
+                "open": float(row["开盘"]),
+                "high": float(row["最高"]),
+                "low": float(row["最低"]),
+                "close": float(row["收盘"]),
+                "volume": int(row["成交量"]) * 100,
+                "amount": float(row["成交额"]),
                 "turn": None,  # 分钟线没有换手率
             }
 
             # 判断是否完成（当前时间 >= K线结束时间）
-            is_finished = datetime.now() >= kline_end
+            is_finished = datetime.now() >= kline_end_time
 
-            # 智能分流存储
+            # 智能分流存储（直接使用AkShare的结束时间，不需要转换）
             if is_finished:
                 # 已完成 → 历史表
-                RealtimeDataUpdater._save_to_history_table(
-                    code, kline_type, kline_start, kline_data, db_conn, db_cursor
+                RealtimeDataUpdater._save_to_history_table_direct(
+                    code, kline_type, kline_end_time, kline_data, db_conn, db_cursor
                 )
                 finished_count += 1
             else:
                 # 进行中 → 实时表
-                RealtimeDataUpdater._save_to_realtime_table_with_conn(
+                RealtimeDataUpdater._save_to_realtime_table_direct(
                     code,
                     kline_type,
-                    kline_start,
+                    kline_end_time,
                     kline_data,
                     is_finished,
                     db_conn,
@@ -378,6 +367,155 @@ class RealtimeDataUpdater:
                 code,
                 kline_type,
                 end_time,  # 使用结束时间
+                kline_data["open"],
+                kline_data["high"],
+                kline_data["low"],
+                kline_data["close"],
+                kline_data["volume"],
+                kline_data["amount"],
+                kline_data.get("turn"),
+                is_finished,
+            ),
+        )
+        db_conn.commit()
+
+    @staticmethod
+    def _save_to_history_table_direct(
+        code: str,
+        kline_type: str,
+        kline_end_time: datetime,
+        kline_data: Dict,
+        db_conn,
+        db_cursor,
+    ):
+        """
+        直接保存到历史表（不转换时间，AkShare已经提供结束时间）
+
+        Args:
+            code: 股票代码
+            kline_type: K线类型
+            kline_end_time: K线结束时间（AkShare格式，已经是结束时间）
+            kline_data: K线数据字典
+            db_conn: 数据库连接
+            db_cursor: 数据库游标
+        """
+        # 根据类型选择表名
+        table_map = {
+            "daily": "stock_kline_daily",
+            "5min": "stock_kline_5min",
+            "15min": "stock_kline_15min",
+            "30min": "stock_kline_30min",
+            "60min": "stock_kline_60min",
+        }
+        table_name = table_map.get(kline_type)
+        if not table_name:
+            return
+
+        if kline_type == "daily":
+            # 日K线
+            sql = f"""
+                INSERT INTO {table_name}
+                (date, code, open, high, low, close, volume, amount, turn)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date, code) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    amount = EXCLUDED.amount,
+                    turn = EXCLUDED.turn
+            """
+            db_cursor.execute(
+                sql,
+                (
+                    kline_end_time.date(),
+                    code,
+                    kline_data["open"],
+                    kline_data["high"],
+                    kline_data["low"],
+                    kline_data["close"],
+                    kline_data["volume"],
+                    kline_data["amount"],
+                    kline_data.get("turn"),
+                ),
+            )
+        else:
+            # 分钟K线：直接使用AkShare的结束时间，不需要转换
+            sql = f"""
+                INSERT INTO {table_name}
+                (date, time, code, open, high, low, close, volume, amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (time, code) DO UPDATE SET
+                    date = EXCLUDED.date,
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    amount = EXCLUDED.amount
+            """
+            db_cursor.execute(
+                sql,
+                (
+                    kline_end_time.date(),
+                    kline_end_time,  # 直接使用结束时间，不转换
+                    code,
+                    kline_data["open"],
+                    kline_data["high"],
+                    kline_data["low"],
+                    kline_data["close"],
+                    kline_data["volume"],
+                    kline_data["amount"],
+                ),
+            )
+
+        db_conn.commit()
+
+    @staticmethod
+    def _save_to_realtime_table_direct(
+        code: str,
+        kline_type: str,
+        kline_end_time: datetime,
+        kline_data: Dict,
+        is_finished: bool,
+        db_conn,
+        db_cursor,
+    ):
+        """
+        直接保存到实时表（不转换时间，AkShare已经提供结束时间）
+
+        Args:
+            code: 股票代码
+            kline_type: K线类型
+            kline_end_time: K线结束时间（AkShare格式，已经是结束时间）
+            kline_data: K线数据字典
+            is_finished: 是否完成（通常为 False）
+            db_conn: 数据库连接
+            db_cursor: 数据库游标
+        """
+        sql = """
+            INSERT INTO stock_kline_realtime
+            (code, kline_type, datetime, open, high, low, close, volume, amount, turn, is_finished, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (code, kline_type, datetime) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
+                amount = EXCLUDED.amount,
+                turn = EXCLUDED.turn,
+                is_finished = EXCLUDED.is_finished,
+                updated_at = NOW()
+        """
+
+        db_cursor.execute(
+            sql,
+            (
+                code,
+                kline_type,
+                kline_end_time,  # 直接使用结束时间，不转换
                 kline_data["open"],
                 kline_data["high"],
                 kline_data["low"],
