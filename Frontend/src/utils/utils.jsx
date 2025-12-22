@@ -27,6 +27,15 @@ export const convertToUnixTimestamp = (timeStr) => {
   return dayjs(timeStr).add(TIME_CONVERSION.hourOffset, "hour").unix();
 };
 
+export function showMessage(api, key, type, content, duration) {
+  api.open({
+    key,
+    type: type,
+    content: content,
+    duration: duration,
+  });
+}
+
 /**
  * 计算 MACD 指标
  * @param {Array} klines - K线数据数组

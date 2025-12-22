@@ -202,8 +202,6 @@ const Header = ({
             </div>
           </div>
         </div>
-
-        {/* 右侧查询表单 */}
         <div className="header-right">
           <form className="query-form" onSubmit={handleSubmit}>
             <div className="form-group">
