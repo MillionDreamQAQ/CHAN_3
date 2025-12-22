@@ -157,6 +157,27 @@ CREATE TABLE stock_kline_60min (
 SELECT create_hypertable('stock_kline_60min', 'time');
 CREATE INDEX idx_60min_code_time ON stock_kline_60min (code, time DESC);
 
+-- 创建实时K线表（用于存储当天实时数据）
+CREATE TABLE stock_kline_realtime (
+    code TEXT NOT NULL,
+    kline_type TEXT NOT NULL,
+    datetime TIMESTAMPTZ NOT NULL,
+    open DECIMAL(10,3),
+    high DECIMAL(10,3),
+    low DECIMAL(10,3),
+    close DECIMAL(10,3),
+    volume BIGINT,
+    amount DECIMAL(20,3),
+    turn DECIMAL(10,3),
+    is_finished BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (code, kline_type, datetime)
+);
+CREATE INDEX idx_realtime_code_type ON stock_kline_realtime (code, kline_type, datetime DESC);
+CREATE INDEX idx_realtime_finished ON stock_kline_realtime (is_finished, datetime);
+CREATE INDEX idx_realtime_updated ON stock_kline_realtime (updated_at DESC);
+```
+
 ## 3. env文件
 在项目根目录和Backend文件夹下创建名为 `.env` 的文件，添加以下内容：
 

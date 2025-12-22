@@ -43,7 +43,7 @@ def is_trading_day(date_obj: datetime) -> bool:
         return True
 
 
-def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
+def adjust_to_trading_day(date_str: str, direction: str = "backward") -> str:
     """
     调整日期到最近的交易日
 
@@ -68,7 +68,7 @@ def adjust_to_trading_day(date_str: str, direction: str = 'backward') -> str:
 
     # 最多尝试30天
     max_attempts = 30
-    delta = timedelta(days=-1 if direction == 'backward' else 1)
+    delta = timedelta(days=-1 if direction == "backward" else 1)
 
     for _ in range(max_attempts):
         date_obj += delta
@@ -111,15 +111,33 @@ def parse_time_column(inp):
 
     return CTime(year, month, day, hour, minute)
 
+
 class CTimescaleStockAPI(CCommonStockApi):
     """
     基于TimescaleDB的股票数据API
     优先从数据库获取数据，缺失时自动从BaoStock补充
+    支持自动获取当天实时数据（来自AkShare）
     """
 
     is_connect = None
 
-    def __init__(self, code, k_type=KL_TYPE.K_DAY, begin_date=None, end_date=None, autype=AUTYPE.QFQ):
+    # K线类型映射（用于实时数据获取）
+    KLINE_TYPE_MAP = {
+        KL_TYPE.K_DAY: "daily",
+        KL_TYPE.K_60M: "60min",
+        KL_TYPE.K_30M: "30min",
+        KL_TYPE.K_15M: "15min",
+        KL_TYPE.K_5M: "5min",
+    }
+
+    def __init__(
+        self,
+        code,
+        k_type=KL_TYPE.K_DAY,
+        begin_date=None,
+        end_date=None,
+        autype=AUTYPE.QFQ,
+    ):
         self.db_conn = None
         self.db_cursor = None
 
@@ -130,39 +148,48 @@ class CTimescaleStockAPI(CCommonStockApi):
         if begin_date:
             # 如果开始日期早于上市日期，使用上市日期
             if stock_list_date and begin_date < stock_list_date:
-                logger.info(f"{code} 上市日期为 {stock_list_date}，调整开始日期 {begin_date} → {stock_list_date}")
+                logger.info(
+                    f"{code} 上市日期为 {stock_list_date}，调整开始日期 {begin_date} → {stock_list_date}"
+                )
                 begin_date = stock_list_date
 
             # 调整到交易日
-            begin_date = adjust_to_trading_day(begin_date, direction='forward')
+            begin_date = adjust_to_trading_day(begin_date, direction="forward")
 
         # 3. 调整结束日期到交易日
         if end_date:
-            end_date = adjust_to_trading_day(end_date, direction='backward')
+            end_date = adjust_to_trading_day(end_date, direction="backward")
 
-        super(CTimescaleStockAPI, self).__init__(code, k_type, begin_date, end_date, autype)
+        super(CTimescaleStockAPI, self).__init__(
+            code, k_type, begin_date, end_date, autype
+        )
 
     def get_kl_data(self):
         """
         获取K线数据（主方法）
-        1. 先从数据库查询
-        2. 检查数据完整性
-        3. 补充缺失数据
-        4. 返回完整数据
+        1. 先从数据库查询历史数据
+        2. 检查数据完整性，补充缺失数据（使用BaoStock）
+        3. 如果查询包含当天，从AkShare获取实时数据并智能存储
+        4. 返回完整数据（历史+实时）
         """
         try:
             # 连接数据库
             self._connect_db()
 
-            # 查询数据库中的数据
+            # 如果查询包含当天，先从AkShare获取今天的实时数据
+            self._fetch_today_data_if_needed()
+
+            # 查询数据库中的数据（历史表+实时表）
             db_data = list(self._query_from_database())
 
-            # 检查数据完整性并获取缺失的日期范围
+            # 检查历史数据完整性并获取缺失的日期范围（不包括今天）
             missing_ranges = self._find_missing_ranges(db_data)
 
             # 如果有缺失数据，从baostock获取并保存
             if missing_ranges:
-                logger.info(f"{self.code} 发现 {len(missing_ranges)} 个数据缺失区间，开始补充...")
+                logger.info(
+                    f"{self.code} 发现 {len(missing_ranges)} 个数据缺失区间，开始补充..."
+                )
                 for start_date, end_date in missing_ranges:
                     self._fetch_and_save_from_baostock(start_date, end_date)
 
@@ -207,8 +234,7 @@ class CTimescaleStockAPI(CCommonStockApi):
             with psycopg.connect(**self._get_db_connection_params()) as conn:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "SELECT list_date FROM stocks WHERE code = %s",
-                        (code,)
+                        "SELECT list_date FROM stocks WHERE code = %s", (code,)
                     )
                     row = cursor.fetchone()
 
@@ -217,7 +243,9 @@ class CTimescaleStockAPI(CCommonStockApi):
                         list_date = row[0]
                         if isinstance(list_date, str):
                             # 如果是字符串，可能是 YYYY-MM-DD 格式
-                            return list_date.split()[0] if ' ' in list_date else list_date
+                            return (
+                                list_date.split()[0] if " " in list_date else list_date
+                            )
                         else:
                             # 如果是 datetime 对象
                             return list_date.strftime("%Y-%m-%d")
@@ -247,53 +275,122 @@ class CTimescaleStockAPI(CCommonStockApi):
         logger.debug("数据库连接已关闭")
 
     def _query_from_database(self):
-        """从数据库查询K线数据"""
-        table_name = self._get_table_name()
+        """
+        从数据库查询K线数据（历史表 + 实时表）
 
+        查询策略：
+        1. 从历史表查询所有数据（包括当天已完成的K线）
+        2. 如果查询包含当天，从实时表查询进行中的K线
+        3. 合并两部分数据返回
+
+        注意：
+        - 历史表查询条件为 time::date <= end_date（包含今天）
+        - 实时表只保存进行中的K线，已完成的会被移到历史表
+        """
+        table_name = self._get_table_name()
         is_minute = kltype_lt_day(self.k_type)
 
-        if is_minute:
-            # 分钟线
-            sql = f"""
-                SELECT date, time, open, high, low, close, volume, amount
-                FROM {table_name}
-                WHERE code = %s
-                AND time >= %s
-                AND time <= %s
-                ORDER BY time ASC
-            """
-        else:
-            # 日线、周线、月线
-            sql = f"""
-                SELECT date, open, high, low, close, volume, amount, turn
-                FROM {table_name}
-                WHERE code = %s
-                AND date >= %s
-                AND date <= %s
-                ORDER BY date ASC
-            """
-
         try:
-            self.db_cursor.execute(sql, (self.code, self.begin_date, self.end_date))
-            rows = self.db_cursor.fetchall()
+            # 1. 查询历史表（包含当天已完成的K线）
+            if is_minute:
+                # 分钟线 - 需要将 end_date 转换为当天结束时间
+                sql_history = f"""
+                    SELECT date, time, open, high, low, close, volume, amount
+                    FROM {table_name}
+                    WHERE code = %s
+                    AND time >= %s
+                    AND time::date <= %s
+                    ORDER BY time ASC
+                """
+            else:
+                # 日线、周线、月线
+                sql_history = f"""
+                    SELECT date, open, high, low, close, volume, amount, turn
+                    FROM {table_name}
+                    WHERE code = %s
+                    AND date >= %s
+                    AND date <= %s
+                    ORDER BY date ASC
+                """
 
-            logger.info(f"从数据库查询到 {len(rows)} 条 {self.code} 的数据")
+            self.db_cursor.execute(
+                sql_history, (self.code, self.begin_date, self.end_date)
+            )
+            historical_rows = self.db_cursor.fetchall()
 
-            # 处理数据
-            for row in rows:
+            # 2. 如果查询范围包含当天，从实时表获取
+            realtime_rows = []
+            today = datetime.now().strftime("%Y-%m-%d")
+
+            if self.end_date >= today:
+                kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
+
+                if kline_type:
+                    # 从实时表查询当天数据（只查今天的、未完成的K线）
+                    sql_realtime = """
+                        SELECT datetime::date, datetime, open, high, low, close, volume, amount, turn
+                        FROM stock_kline_realtime
+                        WHERE code = %s
+                        AND kline_type = %s
+                        AND datetime::date = CURRENT_DATE
+                        ORDER BY stock_kline_realtime.datetime ASC
+                    """
+                    self.db_cursor.execute(sql_realtime, (self.code, kline_type))
+                    realtime_rows = self.db_cursor.fetchall()
+
+            # 3. 合并数据
+            all_rows = list(historical_rows) + list(realtime_rows)
+            logger.info(
+                f"从数据库查询到 {len(historical_rows)} 条历史数据 + {len(realtime_rows)} 条实时数据 = {len(all_rows)} 条"
+            )
+
+            # 4. 处理并返回数据
+            for row in all_rows:
                 if is_minute:
-                    # 分钟线: date, time, open, high, low, close, volume, amount
-                    date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row
-                    time_obj = parse_time_column(str(time_str))
-                    data_dict = self._build_kline_data_dict(
-                        time_obj, open_val, high_val, low_val, close_val, volume, amount
-                    )
+                    # 分钟线: date, time, open, high, low, close, volume, amount[, turn]
+                    if len(row) >= 8:
+                        (
+                            date_str,
+                            time_str,
+                            open_val,
+                            high_val,
+                            low_val,
+                            close_val,
+                            volume,
+                            amount,
+                        ) = row[:8]
+                        time_obj = parse_time_column(str(time_str))
+                        data_dict = self._build_kline_data_dict(
+                            time_obj,
+                            open_val,
+                            high_val,
+                            low_val,
+                            close_val,
+                            volume,
+                            amount,
+                        )
                 else:
                     # 日、周、月: date, open, high, low, close, volume, amount, turn
-                    time_str, open_val, high_val, low_val, close_val, volume, amount, turn = row
+                    (
+                        time_str,
+                        open_val,
+                        high_val,
+                        low_val,
+                        close_val,
+                        volume,
+                        amount,
+                        turn,
+                    ) = row[:8]
                     time_obj = parse_time_column(str(time_str))
                     data_dict = self._build_kline_data_dict(
-                        time_obj, open_val, high_val, low_val, close_val, volume, amount, turn
+                        time_obj,
+                        open_val,
+                        high_val,
+                        low_val,
+                        close_val,
+                        volume,
+                        amount,
+                        turn,
                     )
 
                 yield CKLine_Unit(data_dict)
@@ -312,8 +409,17 @@ class CTimescaleStockAPI(CCommonStockApi):
         """安全转换为int（volume可能是浮点数格式的字符串）"""
         return int(float(val)) if val else None
 
-    def _build_kline_data_dict(self, time_obj: CTime, open_val, high_val, low_val,
-                                close_val, volume, amount, turn=None) -> dict:
+    def _build_kline_data_dict(
+        self,
+        time_obj: CTime,
+        open_val,
+        high_val,
+        low_val,
+        close_val,
+        volume,
+        amount,
+        turn=None,
+    ) -> dict:
         """
         构建K线数据字典
 
@@ -377,7 +483,9 @@ class CTimescaleStockAPI(CCommonStockApi):
         """
         if not db_data:
             # 完全没有数据，返回整个请求范围
-            logger.info(f"{self.code} 数据库中无数据，需要获取完整范围: {self.begin_date} 至 {self.end_date}")
+            logger.info(
+                f"{self.code} 数据库中无数据，需要获取完整范围: {self.begin_date} 至 {self.end_date}"
+            )
             return [(self.begin_date, self.end_date)]
 
         missing_ranges = []
@@ -410,9 +518,9 @@ class CTimescaleStockAPI(CCommonStockApi):
     def _parse_date(self, date_str: str) -> datetime:
         """解析日期字符串，支持多种格式"""
         # 替换斜杠为横杠
-        normalized = date_str.replace('/', '-')
+        normalized = date_str.replace("/", "-")
         # 只取日期部分（去掉可能的时间部分）
-        date_part = normalized.split()[0] if ' ' in normalized else normalized
+        date_part = normalized.split()[0] if " " in normalized else normalized
         return datetime.strptime(date_part, "%Y-%m-%d")
 
     def _date_before(self, date_str: str) -> str:
@@ -428,12 +536,12 @@ class CTimescaleStockAPI(CCommonStockApi):
     def _prev_trading_day(self, date_str: str) -> str:
         """返回给定日期的前一个交易日"""
         prev_date = self._date_before(date_str)
-        return adjust_to_trading_day(prev_date, direction='backward')
+        return adjust_to_trading_day(prev_date, direction="backward")
 
     def _next_trading_day(self, date_str: str) -> str:
         """返回给定日期的后一个交易日"""
         next_date = self._date_after(date_str)
-        return adjust_to_trading_day(next_date, direction='forward')
+        return adjust_to_trading_day(next_date, direction="forward")
 
     def _fetch_and_save_from_baostock(self, start_date: str, end_date: str):
         """
@@ -466,13 +574,13 @@ class CTimescaleStockAPI(CCommonStockApi):
                 adjustflag=autype_dict[self.autype],
             )
 
-            if rs.error_code != '0':
+            if rs.error_code != "0":
                 logger.error(f"BaoStock查询失败: {rs.error_msg}")
                 return
 
             # 收集数据
             data_list = []
-            while rs.error_code == '0' and rs.next():
+            while rs.error_code == "0" and rs.next():
                 data_list.append(rs.get_row_data())
 
             if not data_list:
@@ -503,38 +611,60 @@ class CTimescaleStockAPI(CCommonStockApi):
         for row_data in data_list:
             if is_minute:
                 # 分钟线: date, time, open, high, low, close, volume, amount
-                date_str, time_str, open_val, high_val, low_val, close_val, volume, amount = row_data
+                (
+                    date_str,
+                    time_str,
+                    open_val,
+                    high_val,
+                    low_val,
+                    close_val,
+                    volume,
+                    amount,
+                ) = row_data
 
                 # 格式化时间字符串
                 time_str = time_str[:14]
                 time_str = f"{time_str[:4]}-{time_str[4:6]}-{time_str[6:8]} {time_str[8:10]}:{time_str[10:12]}:{time_str[12:14]}"
 
-                records.append((
-                    date_str,
-                    time_str,
-                    self.code,
-                    self._safe_float(open_val),
-                    self._safe_float(high_val),
-                    self._safe_float(low_val),
-                    self._safe_float(close_val),
-                    self._safe_int(volume),
-                    self._safe_float(amount),
-                ))
+                records.append(
+                    (
+                        date_str,
+                        time_str,
+                        self.code,
+                        self._safe_float(open_val),
+                        self._safe_float(high_val),
+                        self._safe_float(low_val),
+                        self._safe_float(close_val),
+                        self._safe_int(volume),
+                        self._safe_float(amount),
+                    )
+                )
             else:
                 # 日、周、月: date, open, high, low, close, volume, amount, turn
-                date_str, open_val, high_val, low_val, close_val, volume, amount, turn = row_data
-
-                records.append((
+                (
                     date_str,
-                    self.code,
-                    self._safe_float(open_val),
-                    self._safe_float(high_val),
-                    self._safe_float(low_val),
-                    self._safe_float(close_val),
-                    self._safe_int(volume),
-                    self._safe_float(amount),
-                    self._safe_float(turn),
-                ))
+                    open_val,
+                    high_val,
+                    low_val,
+                    close_val,
+                    volume,
+                    amount,
+                    turn,
+                ) = row_data
+
+                records.append(
+                    (
+                        date_str,
+                        self.code,
+                        self._safe_float(open_val),
+                        self._safe_float(high_val),
+                        self._safe_float(low_val),
+                        self._safe_float(close_val),
+                        self._safe_int(volume),
+                        self._safe_float(amount),
+                        self._safe_float(turn),
+                    )
+                )
 
         return records
 
@@ -593,6 +723,82 @@ class CTimescaleStockAPI(CCommonStockApi):
             logger.error(f"保存数据到数据库失败: {e}")
             raise
 
+    def _cleanup_old_realtime_data(self):
+        """
+        清理实时表中的旧数据（非当天的数据）
+
+        说明：
+        - 实时表只应该保存当天的K线数据
+        - 非当天的数据已经没用了（历史数据都在历史表）
+        - 定期清理可以节省存储空间、提高查询性能
+
+        清理策略：
+        - 删除所有 datetime::date < CURRENT_DATE 的数据
+        """
+        try:
+            sql = """
+                DELETE FROM stock_kline_realtime
+                WHERE datetime::date < CURRENT_DATE
+            """
+            self.db_cursor.execute(sql)
+            deleted_count = self.db_cursor.rowcount
+            self.db_conn.commit()
+
+            if deleted_count > 0:
+                logger.info(f"清理实时表旧数据: 删除 {deleted_count} 条")
+
+        except Exception as e:
+            logger.warning(f"清理实时表旧数据失败: {e}")
+            # 清理失败不影响主流程，继续执行
+
+    def _fetch_today_data_if_needed(self):
+        """
+        如果查询包含当天，从AkShare获取今天的实时数据并智能存储
+
+        智能分流策略：
+        - 已完成的K线 → 直接存入历史表（stock_kline_*）
+        - 进行中的K线 → 临时存入实时表（stock_kline_realtime）
+
+        示例（14:20查询60分钟线）：
+        - 09:30-10:30 (已完成) → stock_kline_60min
+        - 10:30-11:30 (已完成) → stock_kline_60min
+        - 13:00-14:00 (已完成) → stock_kline_60min
+        - 14:00-15:00 (进行中) → stock_kline_realtime
+        """
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # 如果查询范围不包含今天，直接返回
+        if self.end_date < today:
+            return
+
+        logger.info(f"{self.code} 查询包含当天，开始从AkShare获取实时数据...")
+
+        try:
+            # 1. 清理实时表中的旧数据（非当天的数据）
+            self._cleanup_old_realtime_data()
+
+            # 2. 导入必要的模块（延迟导入避免循环依赖）
+            from DataAPI.realtime_updater import RealtimeDataUpdater
+
+            # 3. 获取K线类型
+            kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
+
+            if not kline_type:
+                logger.warning(f"不支持的K线类型: {self.k_type}")
+                return
+
+            # 调用更新器获取今天的数据（会自动判断并分流存储）
+            RealtimeDataUpdater.update_realtime_kline_smart(
+                self.code, kline_type, self.db_conn, self.db_cursor
+            )
+
+            logger.info(f"✓ {self.code} 今天的{kline_type}数据已更新")
+
+        except ImportError as e:
+            logger.warning(f"无法导入实时更新模块: {e}，跳过当天数据获取")
+        except Exception as e:
+            logger.warning(f"获取今天数据失败: {e}，将只返回历史数据")
+
     def SetBasicInfo(self):
         """设置股票基本信息"""
         # 可以先尝试从数据库获取
@@ -604,7 +810,9 @@ class CTimescaleStockAPI(CCommonStockApi):
 
             if row:
                 self.name = row[0]
-                self.is_stock = not self.code.startswith('sh.000') and not self.code.startswith('sz.399')
+                self.is_stock = not self.code.startswith(
+                    "sh.000"
+                ) and not self.code.startswith("sz.399")
                 logger.debug(f"从数据库获取股票信息: {self.code} - {self.name}")
                 self._close_db()
                 return
@@ -620,19 +828,19 @@ class CTimescaleStockAPI(CCommonStockApi):
             self.__class__.do_init()
 
         rs = bs.query_stock_basic(code=self.code)
-        if rs.error_code != '0':
+        if rs.error_code != "0":
             raise Exception(rs.error_msg)
 
         code, code_name, ipoDate, outDate, stock_type, status = rs.get_row_data()
         self.name = code_name
-        self.is_stock = (stock_type == '1')
+        self.is_stock = stock_type == "1"
 
     @classmethod
     def do_init(cls):
         """初始化BaoStock连接"""
         if not cls.is_connect:
             cls.is_connect = bs.login()
-            if cls.is_connect.error_code == '0':
+            if cls.is_connect.error_code == "0":
                 logger.info("BaoStock登录成功")
             else:
                 logger.error(f"BaoStock登录失败: {cls.is_connect.error_msg}")
@@ -648,12 +856,12 @@ class CTimescaleStockAPI(CCommonStockApi):
     def __convert_type(self):
         """转换K线类型为BaoStock格式"""
         _dict = {
-            KL_TYPE.K_DAY: 'd',
-            KL_TYPE.K_WEEK: 'w',
-            KL_TYPE.K_MON: 'm',
-            KL_TYPE.K_5M: '5',
-            KL_TYPE.K_15M: '15',
-            KL_TYPE.K_30M: '30',
-            KL_TYPE.K_60M: '60',
+            KL_TYPE.K_DAY: "d",
+            KL_TYPE.K_WEEK: "w",
+            KL_TYPE.K_MON: "m",
+            KL_TYPE.K_5M: "5",
+            KL_TYPE.K_15M: "15",
+            KL_TYPE.K_30M: "30",
+            KL_TYPE.K_60M: "60",
         }
-        return _dict.get(self.k_type, 'd')
+        return _dict.get(self.k_type, "d")
