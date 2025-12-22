@@ -34,7 +34,7 @@ python run.py
 
 1、安装PostgreDB-TimeScaleDB并创建数据库。
 
-2、参考doc/database_readme.md初始化数据库，并创建.env文件。
+2、参考doc/database_readme.md初始化数据库，并创建.env文件（Backend/.env和根目录下的.env都要创建）。
 
 3、运行data/import_stocks_info.py导入股票信息。
 
