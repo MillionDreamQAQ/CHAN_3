@@ -176,14 +176,14 @@ class CTimescaleStockAPI(CCommonStockApi):
             # 连接数据库
             self._connect_db()
 
-            # 如果查询包含当天，先从AkShare获取今天的实时数据
-            self._fetch_today_data_if_needed()
-
             # 查询数据库中的数据（历史表+实时表）
             db_data = list(self._query_from_database())
 
             # 检查历史数据完整性并获取缺失的日期范围（不包括今天）
             missing_ranges = self._find_missing_ranges(db_data)
+
+            # 如果查询包含当天，先从AkShare获取今天的实时数据
+            self._fetch_today_data_if_needed()
 
             # 如果有缺失数据，从baostock获取并保存
             if missing_ranges:
