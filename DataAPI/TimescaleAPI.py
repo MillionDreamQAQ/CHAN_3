@@ -189,6 +189,9 @@ class CTimescaleStockAPI(CCommonStockApi):
                     missing_ranges = self._find_missing_ranges(db_data)
 
                     # 如果查询包含当天，先从AkShare获取今天的实时数据
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    includes_today = self.end_date >= today
+
                     self._fetch_today_data_if_needed()
 
                     # 如果有缺失数据，从baostock获取并保存
@@ -199,6 +202,8 @@ class CTimescaleStockAPI(CCommonStockApi):
                         for start_date, end_date in missing_ranges:
                             self._fetch_and_save_from_baostock(start_date, end_date)
 
+                    # 如果更新了数据（历史缺失数据或今天的实时数据），重新查询
+                    if missing_ranges or includes_today:
                         # 重新从数据库查询完整数据
                         db_data = list(self._query_from_database())
 
