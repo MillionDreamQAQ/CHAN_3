@@ -1,4 +1,5 @@
 import { MACD, SMA } from "technicalindicators";
+import { COLORS } from "../config/config";
 import dayjs from "dayjs";
 
 export const MACD_CONFIG = {
@@ -11,11 +12,6 @@ export const MACD_CONFIG = {
 
 export const TIME_CONVERSION = {
   hourOffset: 8,
-};
-
-export const CHART_COLORS = {
-  upColor: "#ef5350",
-  downColor: "#26a69a",
 };
 
 /**
@@ -102,8 +98,8 @@ export const calculateMACD = (klines) => {
             value: item.histogram ?? 0,
             color:
               item.histogram >= 0
-                ? CHART_COLORS.upColor
-                : CHART_COLORS.downColor,
+                ? COLORS.upColor
+                : COLORS.downColor,
           });
         }
       }
