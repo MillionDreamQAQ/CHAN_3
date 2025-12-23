@@ -174,37 +174,42 @@ class CTimescaleStockAPI(CCommonStockApi):
         3. 如果查询包含当天，从AkShare获取实时数据并智能存储
         4. 返回完整数据（历史+实时）
         """
-        try:
-            # 连接数据库
-            self._connect_db()
+        # 使用上下文管理器确保连接正确关闭
+        with psycopg.connect(**self._get_db_connection_params()) as conn:
+            with conn.cursor() as cursor:
+                # 临时保存连接和游标到实例变量（供其他方法使用）
+                self.db_conn = conn
+                self.db_cursor = cursor
 
-            # 查询数据库中的数据（历史表+实时表）
-            db_data = list(self._query_from_database())
+                try:
+                    # 查询数据库中的数据（历史表+实时表）
+                    db_data = list(self._query_from_database())
 
-            # 检查历史数据完整性并获取缺失的日期范围（不包括今天）
-            missing_ranges = self._find_missing_ranges(db_data)
+                    # 检查历史数据完整性并获取缺失的日期范围（不包括今天）
+                    missing_ranges = self._find_missing_ranges(db_data)
 
-            # 如果查询包含当天，先从AkShare获取今天的实时数据
-            self._fetch_today_data_if_needed()
+                    # 如果查询包含当天，先从AkShare获取今天的实时数据
+                    self._fetch_today_data_if_needed()
 
-            # 如果有缺失数据，从baostock获取并保存
-            if missing_ranges:
-                logger.info(
-                    f"{self.code} 发现 {len(missing_ranges)} 个数据缺失区间，开始补充..."
-                )
-                for start_date, end_date in missing_ranges:
-                    self._fetch_and_save_from_baostock(start_date, end_date)
+                    # 如果有缺失数据，从baostock获取并保存
+                    if missing_ranges:
+                        logger.info(
+                            f"{self.code} 发现 {len(missing_ranges)} 个数据缺失区间，开始补充..."
+                        )
+                        for start_date, end_date in missing_ranges:
+                            self._fetch_and_save_from_baostock(start_date, end_date)
 
-                # 重新从数据库查询完整数据
-                db_data = list(self._query_from_database())
+                        # 重新从数据库查询完整数据
+                        db_data = list(self._query_from_database())
 
-            # 返回数据
-            for kline_unit in db_data:
-                yield kline_unit
+                    # 返回数据
+                    for kline_unit in db_data:
+                        yield kline_unit
 
-        finally:
-            # 关闭数据库连接
-            self._close_db()
+                finally:
+                    # 清理实例变量
+                    self.db_conn = None
+                    self.db_cursor = None
 
     @staticmethod
     def _get_db_connection_params() -> dict:
@@ -258,32 +263,15 @@ class CTimescaleStockAPI(CCommonStockApi):
             logger.warning(f"查询 {code} 上市日期失败: {e}")
             return None
 
-    def _connect_db(self):
-        """连接TimescaleDB数据库"""
-        try:
-            self.db_conn = psycopg.connect(**self._get_db_connection_params())
-            self.db_cursor = self.db_conn.cursor()
-            logger.debug("数据库连接成功")
-        except Exception as e:
-            logger.error(f"数据库连接失败: {e}")
-            raise
-
-    def _close_db(self):
-        """关闭数据库连接"""
-        if self.db_cursor:
-            self.db_cursor.close()
-        if self.db_conn:
-            self.db_conn.close()
-        logger.debug("数据库连接已关闭")
-
     def _query_from_database(self):
         """
         从数据库查询K线数据（历史表 + 实时表）
 
         查询策略：
-        1. 从历史表查询所有数据（包括当天已完成的K线）
-        2. 如果查询包含当天，从实时表查询进行中的K线
-        3. 合并两部分数据返回
+        1. 使用 UNION ALL 一次性查询历史表和实时表数据
+        2. 历史表：包含当天已完成的K线
+        3. 实时表：只包含当天未完成的K线
+        4. 数据库层面完成排序和合并，减少往返次数
 
         注意：
         - 历史表查询条件为 time::date <= end_date（包含今天）
@@ -291,65 +279,98 @@ class CTimescaleStockAPI(CCommonStockApi):
         """
         table_name = self._get_table_name()
         is_minute = kltype_lt_day(self.k_type)
+        today = datetime.now().strftime("%Y-%m-%d")
+        need_realtime = self.end_date >= today
 
         try:
-            # 1. 查询历史表（包含当天已完成的K线）
+            # 构建查询SQL（根据是否需要实时数据决定是否使用 UNION ALL）
             if is_minute:
-                # 分钟线 - 需要将 end_date 转换为当天结束时间
-                sql_history = f"""
-                    SELECT date, time, open, high, low, close, volume, amount
-                    FROM {table_name}
-                    WHERE code = %s
-                    AND time >= %s
-                    AND time::date <= %s
-                    ORDER BY time ASC
-                """
-            else:
-                # 日线、周线、月线
-                sql_history = f"""
-                    SELECT date, open, high, low, close, volume, amount, turn
-                    FROM {table_name}
-                    WHERE code = %s
-                    AND date >= %s
-                    AND date <= %s
-                    ORDER BY date ASC
-                """
+                # 分钟线查询
+                if need_realtime:
+                    kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
+                    if kline_type:
+                        # 合并查询：历史表 + 实时表
+                        sql = f"""
+                            SELECT date, time, open, high, low, close, volume, amount
+                            FROM {table_name}
+                            WHERE code = %s AND time >= %s AND time::date <= %s
 
-            self.db_cursor.execute(
-                sql_history, (self.code, self.begin_date, self.end_date)
-            )
-            historical_rows = self.db_cursor.fetchall()
+                            UNION ALL
 
-            # 2. 如果查询范围包含当天，从实时表获取
-            realtime_rows = []
-            today = datetime.now().strftime("%Y-%m-%d")
+                            SELECT datetime::date, datetime, open, high, low, close, volume, amount
+                            FROM stock_kline_realtime
+                            WHERE code = %s AND kline_type = %s AND datetime::date = CURRENT_DATE
 
-            if self.end_date >= today:
-                kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
-
-                if kline_type:
-                    # 从实时表查询当天数据（只查今天的、未完成的K线）
-                    sql_realtime = """
-                        SELECT datetime::date, datetime, open, high, low, close, volume, amount, turn
-                        FROM stock_kline_realtime
-                        WHERE code = %s
-                        AND kline_type = %s
-                        AND datetime::date = CURRENT_DATE
-                        ORDER BY stock_kline_realtime.datetime ASC
+                            ORDER BY 2 ASC
+                        """
+                        params = (self.code, self.begin_date, self.end_date, self.code, kline_type)
+                    else:
+                        # 不支持的K线类型，只查历史表
+                        sql = f"""
+                            SELECT date, time, open, high, low, close, volume, amount
+                            FROM {table_name}
+                            WHERE code = %s AND time >= %s AND time::date <= %s
+                            ORDER BY time ASC
+                        """
+                        params = (self.code, self.begin_date, self.end_date)
+                else:
+                    # 不包含今天，只查历史表
+                    sql = f"""
+                        SELECT date, time, open, high, low, close, volume, amount
+                        FROM {table_name}
+                        WHERE code = %s AND time >= %s AND time::date <= %s
+                        ORDER BY time ASC
                     """
-                    self.db_cursor.execute(sql_realtime, (self.code, kline_type))
-                    realtime_rows = self.db_cursor.fetchall()
+                    params = (self.code, self.begin_date, self.end_date)
+            else:
+                # 日线、周线、月线查询
+                if need_realtime:
+                    kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
+                    if kline_type:
+                        # 合并查询：历史表 + 实时表
+                        sql = f"""
+                            SELECT date, open, high, low, close, volume, amount, turn
+                            FROM {table_name}
+                            WHERE code = %s AND date >= %s AND date <= %s
 
-            # 3. 合并数据
-            all_rows = list(historical_rows) + list(realtime_rows)
-            logger.info(
-                f"从数据库查询到 {len(historical_rows)} 条历史数据 + {len(realtime_rows)} 条实时数据 = {len(all_rows)} 条"
-            )
+                            UNION ALL
 
-            # 4. 处理并返回数据
+                            SELECT datetime::date, open, high, low, close, volume, amount, turn
+                            FROM stock_kline_realtime
+                            WHERE code = %s AND kline_type = %s AND datetime::date = CURRENT_DATE
+
+                            ORDER BY 1 ASC
+                        """
+                        params = (self.code, self.begin_date, self.end_date, self.code, kline_type)
+                    else:
+                        # 不支持的K线类型，只查历史表
+                        sql = f"""
+                            SELECT date, open, high, low, close, volume, amount, turn
+                            FROM {table_name}
+                            WHERE code = %s AND date >= %s AND date <= %s
+                            ORDER BY date ASC
+                        """
+                        params = (self.code, self.begin_date, self.end_date)
+                else:
+                    # 不包含今天，只查历史表
+                    sql = f"""
+                        SELECT date, open, high, low, close, volume, amount, turn
+                        FROM {table_name}
+                        WHERE code = %s AND date >= %s AND date <= %s
+                        ORDER BY date ASC
+                    """
+                    params = (self.code, self.begin_date, self.end_date)
+
+            # 执行查询
+            self.db_cursor.execute(sql, params)
+            all_rows = self.db_cursor.fetchall()
+
+            logger.info(f"从数据库查询到 {len(all_rows)} 条数据")
+
+            # 处理并返回数据
             for row in all_rows:
                 if is_minute:
-                    # 分钟线: date, time, open, high, low, close, volume, amount[, turn]
+                    # 分钟线: date, time, open, high, low, close, volume, amount
                     if len(row) >= 8:
                         (
                             date_str,
@@ -794,7 +815,7 @@ class CTimescaleStockAPI(CCommonStockApi):
                 self.code, kline_type, self.db_conn, self.db_cursor
             )
 
-            logger.info(f"✓ {self.code} 今天的{kline_type}数据已更新")
+            logger.info(f"√ {self.code} 今天的{kline_type}数据已更新")
 
         except ImportError as e:
             logger.warning(f"无法导入实时更新模块: {e}，跳过当天数据获取")
@@ -805,25 +826,22 @@ class CTimescaleStockAPI(CCommonStockApi):
         """设置股票基本信息"""
         # 可以先尝试从数据库获取
         try:
-            self._connect_db()
-            sql = "SELECT name FROM stocks WHERE code = %s"
-            self.db_cursor.execute(sql, (self.code,))
-            row = self.db_cursor.fetchone()
+            with psycopg.connect(**self._get_db_connection_params()) as conn:
+                with conn.cursor() as cursor:
+                    sql = "SELECT name FROM stocks WHERE code = %s"
+                    cursor.execute(sql, (self.code,))
+                    row = cursor.fetchone()
 
-            if row:
-                self.name = row[0]
-                self.is_stock = not self.code.startswith(
-                    "sh.000"
-                ) and not self.code.startswith("sz.399")
-                logger.debug(f"从数据库获取股票信息: {self.code} - {self.name}")
-                self._close_db()
-                return
+                    if row:
+                        self.name = row[0]
+                        self.is_stock = not self.code.startswith(
+                            "sh.000"
+                        ) and not self.code.startswith("sz.399")
+                        logger.debug(f"从数据库获取股票信息: {self.code} - {self.name}")
+                        return
 
-            self._close_db()
         except Exception as e:
             logger.warning(f"从数据库获取股票信息失败: {e}")
-            if self.db_conn:
-                self._close_db()
 
         # 如果数据库没有，从BaoStock获取
         if not self.is_connect:

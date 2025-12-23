@@ -35,6 +35,17 @@ class RealtimeDataUpdater:
         "60min": "60",
     }
 
+    # K线类型到表名映射
+    TABLE_MAP = {
+        "daily": "stock_kline_daily",
+        "weekly": "stock_kline_weekly",
+        "monthly": "stock_kline_monthly",
+        "5min": "stock_kline_5min",
+        "15min": "stock_kline_15min",
+        "30min": "stock_kline_30min",
+        "60min": "stock_kline_60min",
+    }
+
     @staticmethod
     def is_index_code(code: str) -> bool:
         """
@@ -117,16 +128,7 @@ class RealtimeDataUpdater:
         now = datetime.now()
 
         # 1. 检查历史表
-        table_map = {
-            "daily": "stock_kline_daily",
-            "weekly": "stock_kline_weekly",
-            "monthly": "stock_kline_monthly",
-            "5min": "stock_kline_5min",
-            "15min": "stock_kline_15min",
-            "30min": "stock_kline_30min",
-            "60min": "stock_kline_60min",
-        }
-        table_name = table_map.get(kline_type)
+        table_name = RealtimeDataUpdater.TABLE_MAP.get(kline_type)
         if not table_name:
             return False
 
@@ -142,7 +144,7 @@ class RealtimeDataUpdater:
                 _, _, is_finished = KLineTimeRules.get_kline_at_time(kline_type, now)
                 if is_finished and history_count > 0:
                     logger.info(
-                        f"✓ {code} {kline_type} 已收盘且数据完整，跳过AkShare请求"
+                        f"√ {code} {kline_type} 已收盘且数据完整，跳过AkShare请求"
                     )
                     return True
 
@@ -164,8 +166,7 @@ class RealtimeDataUpdater:
 
             # 3. 判断数据是否完整（针对分钟线）
             if kline_type in ["5min", "15min", "30min", "60min"]:
-                # 获取当前应有的K线数量
-                expected_count = KLineTimeRules.get_expected_count(kline_type)
+                # 获取所有K线时间点
                 all_kline_times = KLineTimeRules.get_all_kline_times(kline_type, today)
 
                 # 计算已经完成的K线数量
@@ -178,12 +179,12 @@ class RealtimeDataUpdater:
                 # 如果已完成的K线数量 == 数据库中的数量，说明数据完整
                 if total_count >= finished_klines and finished_klines > 0:
                     logger.info(
-                        f"✓ {code} {kline_type} 数据完整 (已完成{finished_klines}根，数据库{total_count}条)，跳过AkShare请求"
+                        f"√ {code} {kline_type} 数据完整 (已完成{finished_klines}根，数据库{total_count}条)，跳过AkShare请求"
                     )
                     return True
                 else:
                     logger.info(
-                        f"✗ {code} {kline_type} 数据不完整 (已完成{finished_klines}根，数据库仅{total_count}条)，需要从AkShare更新"
+                        f"x {code} {kline_type} 数据不完整 (已完成{finished_klines}根，数据库仅{total_count}条)，需要从AkShare更新"
                     )
                     return False
 
@@ -246,10 +247,10 @@ class RealtimeDataUpdater:
             RealtimeDataUpdater._save_to_history_table(
                 code, kline_type, start_time, kline_data, db_conn, db_cursor
             )
-            logger.info(f"✓ {code} 日K线 → 历史表 (已完成)")
+            logger.info(f"√ {code} 日K线 → 历史表 (已完成)")
         else:
             # 进行中（盘中） → 实时表
-            RealtimeDataUpdater._save_to_realtime_table_with_conn(
+            RealtimeDataUpdater._save_to_realtime_table(
                 code,
                 kline_type,
                 start_time,
@@ -258,7 +259,7 @@ class RealtimeDataUpdater:
                 db_conn,
                 db_cursor,
             )
-            logger.info(f"✓ {code} 日K线 → 实时表 (进行中)")
+            logger.info(f"√ {code} 日K线 → 实时表 (进行中)")
 
     @staticmethod
     def _update_minute_smart(
@@ -294,14 +295,16 @@ class RealtimeDataUpdater:
 
         df["时间"] = pd.to_datetime(df["时间"])
         today = datetime.now().date()
-
-        finished_count = 0
-        ongoing_count = 0
+        now = datetime.now()
 
         # 只处理当天的数据
         df_today = df[df["时间"].dt.date == today]
 
-        # 遍历AkShare返回的每根K线
+        # 分类收集数据（批量处理）
+        history_records = []  # 已完成的K线 → 历史表
+        realtime_records = []  # 进行中的K线 → 实时表
+
+        # 遍历AkShare返回的每根K线，分类收集
         for idx, row in df_today.iterrows():
             kline_end_time = row["时间"]  # AkShare返回的是K线结束时间
 
@@ -317,30 +320,29 @@ class RealtimeDataUpdater:
             }
 
             # 判断是否完成（当前时间 >= K线结束时间）
-            is_finished = datetime.now() >= kline_end_time
+            is_finished = now >= kline_end_time
 
-            # 智能分流存储（直接使用AkShare的结束时间，不需要转换）
             if is_finished:
-                # 已完成 → 历史表
-                RealtimeDataUpdater._save_to_history_table_direct(
-                    code, kline_type, kline_end_time, kline_data, db_conn, db_cursor
-                )
-                finished_count += 1
+                # 已完成 → 收集到历史表批次
+                history_records.append((kline_end_time, kline_data))
             else:
-                # 进行中 → 实时表
-                RealtimeDataUpdater._save_to_realtime_table_direct(
-                    code,
-                    kline_type,
-                    kline_end_time,
-                    kline_data,
-                    is_finished,
-                    db_conn,
-                    db_cursor,
-                )
-                ongoing_count += 1
+                # 进行中 → 收集到实时表批次
+                realtime_records.append((kline_end_time, kline_data, is_finished))
+
+        # 批量插入历史表
+        if history_records:
+            RealtimeDataUpdater._batch_save_to_history_table(
+                code, kline_type, history_records, db_conn, db_cursor
+            )
+
+        # 批量插入实时表
+        if realtime_records:
+            RealtimeDataUpdater._batch_save_to_realtime_table(
+                code, kline_type, realtime_records, db_conn, db_cursor
+            )
 
         logger.info(
-            f"✓ {code} {kline_type}: {finished_count}根→历史表, {ongoing_count}根→实时表"
+            f"√ {code} {kline_type}: {len(history_records)}根→历史表, {len(realtime_records)}根→实时表"
         )
 
     @staticmethod
@@ -351,6 +353,7 @@ class RealtimeDataUpdater:
         kline_data: Dict,
         db_conn,
         db_cursor,
+        time_is_end: bool = False,
     ):
         """
         保存到历史表（已完成的K线）
@@ -358,29 +361,37 @@ class RealtimeDataUpdater:
         Args:
             code: 股票代码
             kline_type: K线类型
-            kline_time: K线开始时间（AkShare格式）
+            kline_time: K线时间（开始时间或结束时间，由 time_is_end 参数决定）
             kline_data: K线数据字典
             db_conn: 数据库连接
             db_cursor: 数据库游标
+            time_is_end: 时间是否已经是结束时间（默认 False，表示需要转换）
 
         注意：
-            AkShare 使用开始时间，BaoStock 使用结束时间
-            需要将开始时间转换为结束时间以保持一致
-            例如：09:30 (开始) → 10:30 (结束) for 60min
+            - time_is_end=False: kline_time 是开始时间，需要转换为结束时间（与BaoStock保持一致）
+            - time_is_end=True: kline_time 已经是结束时间，直接使用
         """
-        # 根据类型选择表名
-        table_map = {
-            "daily": "stock_kline_daily",
-            "5min": "stock_kline_5min",
-            "15min": "stock_kline_15min",
-            "30min": "stock_kline_30min",
-            "60min": "stock_kline_60min",
-        }
-        table_name = table_map.get(kline_type)
+        # 使用类常量获取表名
+        table_name = RealtimeDataUpdater.TABLE_MAP.get(kline_type)
         if not table_name:
             return
-        if kline_type == "daily" or kline_type == "monthly" or kline_type == "weekly":
-            # 日K线、月K线、周K线
+
+        # 处理时间转换
+        if kline_type in ["daily", "weekly", "monthly"]:
+            # 日K线、周K线、月K线 - 不需要转换
+            final_time = kline_time
+        else:
+            # 分钟K线 - 根据 time_is_end 参数决定是否转换
+            if time_is_end:
+                final_time = kline_time  # 已经是结束时间
+            else:
+                # 需要将开始时间转换为结束时间
+                minutes = int(kline_type.replace("min", ""))
+                final_time = kline_time + timedelta(minutes=minutes)
+
+        # 执行插入
+        if kline_type in ["daily", "weekly", "monthly"]:
+            # 日/周/月K线
             sql = f"""
                 INSERT INTO {table_name}
                 (date, code, open, high, low, close, volume, amount, turn)
@@ -397,7 +408,7 @@ class RealtimeDataUpdater:
             db_cursor.execute(
                 sql,
                 (
-                    kline_time.date(),
+                    final_time.date(),
                     code,
                     kline_data["open"],
                     kline_data["high"],
@@ -409,10 +420,7 @@ class RealtimeDataUpdater:
                 ),
             )
         else:
-            # 分钟K线：将开始时间转换为结束时间（与BaoStock保持一致）
-            minutes = int(kline_type.replace("min", ""))
-            end_time = kline_time + timedelta(minutes=minutes)
-
+            # 分钟K线
             sql = f"""
                 INSERT INTO {table_name}
                 (date, time, code, open, high, low, close, volume, amount)
@@ -429,8 +437,8 @@ class RealtimeDataUpdater:
             db_cursor.execute(
                 sql,
                 (
-                    kline_time.date(),
-                    end_time,  # 使用结束时间
+                    final_time.date(),
+                    final_time,
                     code,
                     kline_data["open"],
                     kline_data["high"],
@@ -444,7 +452,7 @@ class RealtimeDataUpdater:
         db_conn.commit()
 
     @staticmethod
-    def _save_to_realtime_table_with_conn(
+    def _save_to_realtime_table(
         code: str,
         kline_type: str,
         kline_time: datetime,
@@ -452,6 +460,7 @@ class RealtimeDataUpdater:
         is_finished: bool,
         db_conn,
         db_cursor,
+        time_is_end: bool = False,
     ):
         """
         保存到实时表（进行中的K线）
@@ -459,21 +468,27 @@ class RealtimeDataUpdater:
         Args:
             code: 股票代码
             kline_type: K线类型
-            kline_time: K线开始时间（AkShare格式）
+            kline_time: K线时间（开始时间或结束时间，由 time_is_end 参数决定）
             kline_data: K线数据字典
             is_finished: 是否完成（通常为 False）
             db_conn: 数据库连接
             db_cursor: 数据库游标
+            time_is_end: 时间是否已经是结束时间（默认 False，表示需要转换）
 
         注意：
-            需要将开始时间转换为结束时间以与BaoStock保持一致
+            - time_is_end=False: kline_time 是开始时间，需要转换为结束时间（与BaoStock保持一致）
+            - time_is_end=True: kline_time 已经是结束时间，直接使用
         """
-        # 将开始时间转换为结束时间（与BaoStock保持一致）
-        if kline_type == "daily":
-            end_time = kline_time
+        # 处理时间转换
+        if kline_type in ["daily", "weekly", "monthly"]:
+            final_time = kline_time
         else:
-            minutes = int(kline_type.replace("min", ""))
-            end_time = kline_time + timedelta(minutes=minutes)
+            if time_is_end:
+                final_time = kline_time  # 已经是结束时间
+            else:
+                # 需要将开始时间转换为结束时间
+                minutes = int(kline_type.replace("min", ""))
+                final_time = kline_time + timedelta(minutes=minutes)
 
         sql = """
             INSERT INTO stock_kline_realtime
@@ -496,7 +511,7 @@ class RealtimeDataUpdater:
             (
                 code,
                 kline_type,
-                end_time,  # 使用结束时间
+                final_time,
                 kline_data["open"],
                 kline_data["high"],
                 kline_data["low"],
@@ -510,39 +525,34 @@ class RealtimeDataUpdater:
         db_conn.commit()
 
     @staticmethod
-    def _save_to_history_table_direct(
+    def _batch_save_to_history_table(
         code: str,
         kline_type: str,
-        kline_end_time: datetime,
-        kline_data: Dict,
+        records: list,
         db_conn,
         db_cursor,
     ):
         """
-        直接保存到历史表（不转换时间，AkShare已经提供结束时间）
+        批量保存到历史表（已完成的K线）
 
         Args:
             code: 股票代码
             kline_type: K线类型
-            kline_end_time: K线结束时间（AkShare格式，已经是结束时间）
-            kline_data: K线数据字典
+            records: 记录列表，每条记录为 (kline_end_time, kline_data)
             db_conn: 数据库连接
             db_cursor: 数据库游标
         """
-        # 根据类型选择表名
-        table_map = {
-            "daily": "stock_kline_daily",
-            "5min": "stock_kline_5min",
-            "15min": "stock_kline_15min",
-            "30min": "stock_kline_30min",
-            "60min": "stock_kline_60min",
-        }
-        table_name = table_map.get(kline_type)
+        if not records:
+            return
+
+        # 使用类常量获取表名
+        table_name = RealtimeDataUpdater.TABLE_MAP.get(kline_type)
         if not table_name:
             return
 
-        if kline_type == "daily":
-            # 日K线
+        # 构建批量插入SQL
+        if kline_type in ["daily", "weekly", "monthly"]:
+            # 日/周/月K线
             sql = f"""
                 INSERT INTO {table_name}
                 (date, code, open, high, low, close, volume, amount, turn)
@@ -556,10 +566,10 @@ class RealtimeDataUpdater:
                     amount = EXCLUDED.amount,
                     turn = EXCLUDED.turn
             """
-            db_cursor.execute(
-                sql,
+            # 准备批量数据
+            batch_data = [
                 (
-                    kline_end_time.date(),
+                    kline_time.date(),
                     code,
                     kline_data["open"],
                     kline_data["high"],
@@ -568,10 +578,11 @@ class RealtimeDataUpdater:
                     kline_data["volume"],
                     kline_data["amount"],
                     kline_data.get("turn"),
-                ),
-            )
+                )
+                for kline_time, kline_data in records
+            ]
         else:
-            # 分钟K线：直接使用AkShare的结束时间，不需要转换
+            # 分钟K线
             sql = f"""
                 INSERT INTO {table_name}
                 (date, time, code, open, high, low, close, volume, amount)
@@ -585,11 +596,11 @@ class RealtimeDataUpdater:
                     volume = EXCLUDED.volume,
                     amount = EXCLUDED.amount
             """
-            db_cursor.execute(
-                sql,
+            # 准备批量数据
+            batch_data = [
                 (
-                    kline_end_time.date(),
-                    kline_end_time,  # 直接使用结束时间，不转换
+                    kline_time.date(),
+                    kline_time,
                     code,
                     kline_data["open"],
                     kline_data["high"],
@@ -597,33 +608,35 @@ class RealtimeDataUpdater:
                     kline_data["close"],
                     kline_data["volume"],
                     kline_data["amount"],
-                ),
-            )
+                )
+                for kline_time, kline_data in records
+            ]
 
+        # 批量执行
+        db_cursor.executemany(sql, batch_data)
         db_conn.commit()
 
     @staticmethod
-    def _save_to_realtime_table_direct(
+    def _batch_save_to_realtime_table(
         code: str,
         kline_type: str,
-        kline_end_time: datetime,
-        kline_data: Dict,
-        is_finished: bool,
+        records: list,
         db_conn,
         db_cursor,
     ):
         """
-        直接保存到实时表（不转换时间，AkShare已经提供结束时间）
+        批量保存到实时表（进行中的K线）
 
         Args:
             code: 股票代码
             kline_type: K线类型
-            kline_end_time: K线结束时间（AkShare格式，已经是结束时间）
-            kline_data: K线数据字典
-            is_finished: 是否完成（通常为 False）
+            records: 记录列表，每条记录为 (kline_end_time, kline_data, is_finished)
             db_conn: 数据库连接
             db_cursor: 数据库游标
         """
+        if not records:
+            return
+
         sql = """
             INSERT INTO stock_kline_realtime
             (code, kline_type, datetime, open, high, low, close, volume, amount, turn, is_finished, updated_at)
@@ -640,12 +653,12 @@ class RealtimeDataUpdater:
                 updated_at = NOW()
         """
 
-        db_cursor.execute(
-            sql,
+        # 准备批量数据
+        batch_data = [
             (
                 code,
                 kline_type,
-                kline_end_time,  # 直接使用结束时间，不转换
+                kline_time,
                 kline_data["open"],
                 kline_data["high"],
                 kline_data["low"],
@@ -654,8 +667,12 @@ class RealtimeDataUpdater:
                 kline_data["amount"],
                 kline_data.get("turn"),
                 is_finished,
-            ),
-        )
+            )
+            for kline_time, kline_data, is_finished in records
+        ]
+
+        # 批量执行
+        db_cursor.executemany(sql, batch_data)
         db_conn.commit()
 
     @staticmethod
@@ -692,7 +709,7 @@ class RealtimeDataUpdater:
             return
 
         row = df.iloc[-1]
-        start_time, is_finished = KLineTimeRules.get_kline_at_time("daily")
+        start_time, end_time, is_finished = KLineTimeRules.get_kline_at_time("daily")
 
         kline_data = {
             "open": float(row["开盘"]),
@@ -710,10 +727,10 @@ class RealtimeDataUpdater:
             RealtimeDataUpdater._save_to_history_table(
                 code, kline_type, start_time, kline_data, db_conn, db_cursor
             )
-            logger.info(f"✓ {code} 指数日K线 → 历史表 (已完成)")
+            logger.info(f"√ {code} 指数日K线 → 历史表 (已完成)")
         else:
             # 进行中（盘中） → 实时表
-            RealtimeDataUpdater._save_to_realtime_table_with_conn(
+            RealtimeDataUpdater._save_to_realtime_table(
                 code,
                 kline_type,
                 start_time,
@@ -722,4 +739,4 @@ class RealtimeDataUpdater:
                 db_conn,
                 db_cursor,
             )
-            logger.info(f"✓ {code} 指数日K线 → 实时表 (进行中)")
+            logger.info(f"√ {code} 指数日K线 → 实时表 (进行中)")
