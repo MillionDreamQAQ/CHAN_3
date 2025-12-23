@@ -39,7 +39,7 @@
 }
 
 .indicator-group .ant-checkbox-wrapper span {
-  font-weight: 500;
+  font-weight: bold;
 }
 
 .indicator-divider {
@@ -59,7 +59,7 @@
 .header-title {
   margin: 0;
   font-size: 24px;
-  font-weight: 600;
+  font-weight: bold;
   white-space: nowrap;
 }
 
@@ -91,7 +91,7 @@
   padding: 8px 24px;
   color: white;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
   white-space: nowrap;
 }

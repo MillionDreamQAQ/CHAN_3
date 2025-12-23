@@ -281,9 +281,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         time: k.time,
         value: k.volume,
         color:
-          k.close >= k.open
-            ? `${COLORS.upColor}4d`
-            : `${COLORS.downColor}4d`,
+          k.close >= k.open ? `${COLORS.upColor}4d` : `${COLORS.downColor}4d`,
       }));
       seriesRefs.current.volume.setData(volumeData);
     }
@@ -667,64 +665,71 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         )}
         {klineInfo && (
           <div className="kline-info-panel">
-            <div className="kline-info-item">
-              <span className="kline-info-label">开</span>
-              <span className="kline-info-value">
-                {klineInfo.open.toFixed(FORMAT_CONFIG.priceDecimal)}
-              </span>
-            </div>
-            <div className="kline-info-item">
-              <span className="kline-info-label">高</span>
-              <span className="kline-info-value kline-info-high">
-                {klineInfo.high.toFixed(FORMAT_CONFIG.priceDecimal)}
-              </span>
-            </div>
-            <div className="kline-info-item">
-              <span className="kline-info-label">低</span>
-              <span className="kline-info-value kline-info-low">
-                {klineInfo.low.toFixed(FORMAT_CONFIG.priceDecimal)}
-              </span>
-            </div>
-            <div className="kline-info-item">
-              <span className="kline-info-label">收</span>
-              <span
-                className={`kline-info-value ${
+            <div className="kline-info-left">
+              <div
+                className={`kline-info-close ${
                   klineInfo.close >= klineInfo.prevClose
                     ? "kline-info-up"
                     : "kline-info-down"
                 }`}
               >
                 {klineInfo.close.toFixed(FORMAT_CONFIG.priceDecimal)}
-              </span>
+              </div>
+              <div className="kline-info-change-row">
+                <span
+                  className={`kline-info-change-value ${
+                    klineInfo.close >= klineInfo.prevClose
+                      ? "kline-info-up"
+                      : "kline-info-down"
+                  }`}
+                >
+                  {klineInfo.close >= klineInfo.prevClose ? "+" : ""}
+                  {(klineInfo.close - klineInfo.prevClose).toFixed(
+                    FORMAT_CONFIG.priceDecimal
+                  )}
+                </span>
+                <span
+                  className={`kline-info-change-value ${
+                    klineInfo.close >= klineInfo.prevClose
+                      ? "kline-info-up"
+                      : "kline-info-down"
+                  }`}
+                >
+                  {klineInfo.close >= klineInfo.prevClose ? "+" : ""}
+                  {(
+                    ((klineInfo.close - klineInfo.prevClose) /
+                      klineInfo.prevClose) *
+                    100
+                  ).toFixed(2)}
+                  %
+                </span>
+              </div>
             </div>
-            <div className="kline-info-item">
-              <span className="kline-info-label">幅</span>
-              <span
-                className={`kline-info-value ${
-                  klineInfo.close >= klineInfo.prevClose
-                    ? "kline-info-up"
-                    : "kline-info-down"
-                }`}
-              >
-                {(
-                  ((klineInfo.close - klineInfo.prevClose) /
-                    klineInfo.prevClose) *
-                  100
-                ).toFixed(2)}
-                %
-              </span>
-            </div>
-            <div className="kline-info-item">
-              <span className="kline-info-label">量</span>
-              <span className="kline-info-value">
-                {klineInfo.volume >= FORMAT_CONFIG.volumeThreshold
-                  ? `${(
-                      klineInfo.volume / FORMAT_CONFIG.volumeDivisorLarge
-                    ).toFixed(FORMAT_CONFIG.volumeDecimal)}亿`
-                  : `${(klineInfo.volume / FORMAT_CONFIG.volumeDivisor).toFixed(
-                      FORMAT_CONFIG.volumeDecimal
-                    )}万`}
-              </span>
+            <div className="kline-info-right">
+              <div className="kline-info-item">
+                <span className="kline-info-label">开</span>
+                <span
+                  className={`kline-info-value ${
+                    klineInfo.open >= klineInfo.prevClose
+                      ? "kline-info-up"
+                      : "kline-info-down"
+                  }`}
+                >
+                  {klineInfo.open.toFixed(FORMAT_CONFIG.priceDecimal)}
+                </span>
+              </div>
+              <div className="kline-info-item">
+                <span className="kline-info-label">高</span>
+                <span className="kline-info-value kline-info-high">
+                  {klineInfo.high.toFixed(FORMAT_CONFIG.priceDecimal)}
+                </span>
+              </div>
+              <div className="kline-info-item">
+                <span className="kline-info-label">低</span>
+                <span className="kline-info-value kline-info-low">
+                  {klineInfo.low.toFixed(FORMAT_CONFIG.priceDecimal)}
+                </span>
+              </div>
             </div>
           </div>
         )}
