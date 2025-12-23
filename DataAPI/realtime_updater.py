@@ -192,27 +192,15 @@ class RealtimeDataUpdater:
                         )
                         return False
 
-                # 盘中：需要检查历史表 + 实时表
-                sql_realtime = """
-                    SELECT COUNT(*) FROM stock_kline_realtime
-                    WHERE code = %s AND kline_type = %s AND datetime::date = %s
-                """
-                db_cursor.execute(sql_realtime, (code, kline_type, today))
-                realtime_count = db_cursor.fetchone()[0]
-
-                total_count = history_count + realtime_count
-
-                # 判断数据完整性
-                if total_count >= finished_klines:
-                    logger.info(
-                        f"√ {code} {kline_type} 数据完整 (已完成{finished_klines}根，数据库{total_count}条)，跳过AkShare请求"
-                    )
-                    return True
-                else:
-                    logger.info(
-                        f"× {code} {kline_type} 数据不完整 (已完成{finished_klines}根，数据库仅{total_count}条)，需要从AkShare更新"
-                    )
-                    return False
+                # 盘中：数据会不断变化，需要更新
+                # 原因：
+                # 1. 进行中的K线价格会实时变化
+                # 2. 新的K线会不断产生（如10:05时只有09:30-10:30，10:35时会出现10:30-11:30）
+                # 因此盘中时总是返回False，强制从AkShare获取最新数据
+                logger.info(
+                    f"× {code} {kline_type} 盘中数据需要更新 (已完成{finished_klines}根，但进行中的K线会变化)"
+                )
+                return False
 
         except Exception as e:
             logger.warning(f"检查今天数据失败: {e}，继续从AkShare获取")
@@ -473,6 +461,14 @@ class RealtimeDataUpdater:
                 ),
             )
 
+        # 删除实时表中的对应数据（避免重复）
+        # 当K线从"进行中"变为"已完成"后，需要从实时表移除
+        delete_sql = """
+            DELETE FROM stock_kline_realtime
+            WHERE code = %s AND kline_type = %s AND datetime = %s
+        """
+        db_cursor.execute(delete_sql, (code, kline_type, final_time))
+
         db_conn.commit()
 
     @staticmethod
@@ -638,6 +634,20 @@ class RealtimeDataUpdater:
 
         # 批量执行
         db_cursor.executemany(sql, batch_data)
+
+        # 批量删除实时表中的对应数据（避免重复）
+        # 提取所有时间点用于删除
+        datetimes_to_delete = [kline_time for kline_time, _ in records]
+
+        if datetimes_to_delete:
+            # 使用 IN 子句批量删除
+            placeholders = ",".join(["%s"] * len(datetimes_to_delete))
+            delete_sql = f"""
+                DELETE FROM stock_kline_realtime
+                WHERE code = %s AND kline_type = %s AND datetime IN ({placeholders})
+            """
+            db_cursor.execute(delete_sql, (code, kline_type, *datetimes_to_delete))
+
         db_conn.commit()
 
     @staticmethod
