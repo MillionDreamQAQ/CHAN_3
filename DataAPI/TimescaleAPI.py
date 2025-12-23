@@ -263,6 +263,65 @@ class CTimescaleStockAPI(CCommonStockApi):
             logger.warning(f"查询 {code} 上市日期失败: {e}")
             return None
 
+    def _build_query_sql(
+        self, is_minute: bool, need_realtime: bool, table_name: str
+    ) -> Tuple[str, tuple]:
+        """
+        构建查询SQL和参数（提取公共逻辑）
+
+        Args:
+            is_minute: 是否为分钟线
+            need_realtime: 是否需要查询实时表
+            table_name: 历史表名
+
+        Returns:
+            (sql, params) 元组
+        """
+        # 获取K线类型（用于实时表查询）
+        kline_type = self.KLINE_TYPE_MAP.get(self.k_type) if need_realtime else None
+
+        if is_minute:
+            # 分钟线字段配置
+            fields = "date, time, open, high, low, close, volume, amount"
+            realtime_fields = "datetime::date, datetime, open, high, low, close, volume, amount"
+            time_column = "time"
+            order_by = "2"  # 按第二列排序（时间列）
+        else:
+            # 日线字段配置
+            fields = "date, open, high, low, close, volume, amount, turn"
+            realtime_fields = "datetime::date, open, high, low, close, volume, amount, turn"
+            time_column = "date"
+            order_by = "1"  # 按第一列排序（日期列）
+
+        # 构建SQL
+        if need_realtime and kline_type:
+            # 历史表 + 实时表（UNION ALL）
+            sql = f"""
+                SELECT {fields}
+                FROM {table_name}
+                WHERE code = %s AND {time_column} >= %s AND {time_column}{"::date" if is_minute else ""} <= %s
+
+                UNION ALL
+
+                SELECT {realtime_fields}
+                FROM stock_kline_realtime
+                WHERE code = %s AND kline_type = %s AND datetime::date = CURRENT_DATE
+
+                ORDER BY {order_by} ASC
+            """
+            params = (self.code, self.begin_date, self.end_date, self.code, kline_type)
+        else:
+            # 只查历史表
+            sql = f"""
+                SELECT {fields}
+                FROM {table_name}
+                WHERE code = %s AND {time_column} >= %s AND {time_column}{"::date" if is_minute else ""} <= %s
+                ORDER BY {time_column} ASC
+            """
+            params = (self.code, self.begin_date, self.end_date)
+
+        return sql, params
+
     def _query_from_database(self):
         """
         从数据库查询K线数据（历史表 + 实时表）
@@ -283,83 +342,8 @@ class CTimescaleStockAPI(CCommonStockApi):
         need_realtime = self.end_date >= today
 
         try:
-            # 构建查询SQL（根据是否需要实时数据决定是否使用 UNION ALL）
-            if is_minute:
-                # 分钟线查询
-                if need_realtime:
-                    kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
-                    if kline_type:
-                        # 合并查询：历史表 + 实时表
-                        sql = f"""
-                            SELECT date, time, open, high, low, close, volume, amount
-                            FROM {table_name}
-                            WHERE code = %s AND time >= %s AND time::date <= %s
-
-                            UNION ALL
-
-                            SELECT datetime::date, datetime, open, high, low, close, volume, amount
-                            FROM stock_kline_realtime
-                            WHERE code = %s AND kline_type = %s AND datetime::date = CURRENT_DATE
-
-                            ORDER BY 2 ASC
-                        """
-                        params = (self.code, self.begin_date, self.end_date, self.code, kline_type)
-                    else:
-                        # 不支持的K线类型，只查历史表
-                        sql = f"""
-                            SELECT date, time, open, high, low, close, volume, amount
-                            FROM {table_name}
-                            WHERE code = %s AND time >= %s AND time::date <= %s
-                            ORDER BY time ASC
-                        """
-                        params = (self.code, self.begin_date, self.end_date)
-                else:
-                    # 不包含今天，只查历史表
-                    sql = f"""
-                        SELECT date, time, open, high, low, close, volume, amount
-                        FROM {table_name}
-                        WHERE code = %s AND time >= %s AND time::date <= %s
-                        ORDER BY time ASC
-                    """
-                    params = (self.code, self.begin_date, self.end_date)
-            else:
-                # 日线、周线、月线查询
-                if need_realtime:
-                    kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
-                    if kline_type:
-                        # 合并查询：历史表 + 实时表
-                        sql = f"""
-                            SELECT date, open, high, low, close, volume, amount, turn
-                            FROM {table_name}
-                            WHERE code = %s AND date >= %s AND date <= %s
-
-                            UNION ALL
-
-                            SELECT datetime::date, open, high, low, close, volume, amount, turn
-                            FROM stock_kline_realtime
-                            WHERE code = %s AND kline_type = %s AND datetime::date = CURRENT_DATE
-
-                            ORDER BY 1 ASC
-                        """
-                        params = (self.code, self.begin_date, self.end_date, self.code, kline_type)
-                    else:
-                        # 不支持的K线类型，只查历史表
-                        sql = f"""
-                            SELECT date, open, high, low, close, volume, amount, turn
-                            FROM {table_name}
-                            WHERE code = %s AND date >= %s AND date <= %s
-                            ORDER BY date ASC
-                        """
-                        params = (self.code, self.begin_date, self.end_date)
-                else:
-                    # 不包含今天，只查历史表
-                    sql = f"""
-                        SELECT date, open, high, low, close, volume, amount, turn
-                        FROM {table_name}
-                        WHERE code = %s AND date >= %s AND date <= %s
-                        ORDER BY date ASC
-                    """
-                    params = (self.code, self.begin_date, self.end_date)
+            # 构建查询SQL（使用提取的公共方法）
+            sql, params = self._build_query_sql(is_minute, need_realtime, table_name)
 
             # 执行查询
             self.db_cursor.execute(sql, params)

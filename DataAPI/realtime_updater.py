@@ -207,37 +207,73 @@ class RealtimeDataUpdater:
             return False
 
     @staticmethod
-    def _update_daily_smart(
-        code: str, pure_code: str, kline_type: str, db_conn, db_cursor
-    ):
+    def _fetch_daily_kline_from_akshare(
+        pure_code: str, today: str, is_index: bool
+    ) -> pd.DataFrame:
         """
-        智能更新日K线
+        从AkShare获取日K线数据（股票或指数）
 
         Args:
-            code: 完整股票代码（如 sh.600519）
-            pure_code: 纯数字代码（如 600519）
+            pure_code: 纯数字代码（如 600519 或 000001）
+            today: 日期字符串（YYYYMMDD格式）
+            is_index: 是否为指数
+
+        Returns:
+            DataFrame，如果失败返回空DataFrame
+        """
+        if is_index:
+            # 指数日K数据
+            return ak.index_zh_a_hist(
+                symbol=pure_code,
+                period="daily",
+                start_date=today,
+                end_date=today,
+            )
+        else:
+            # 股票日K数据
+            return ak.stock_zh_a_hist(
+                symbol=pure_code,
+                period="daily",
+                start_date=today,
+                end_date=today,
+                adjust="qfq",
+            )
+
+    @staticmethod
+    def _update_daily_kline_smart(
+        code: str,
+        pure_code: str,
+        kline_type: str,
+        db_conn,
+        db_cursor,
+        is_index: bool = False,
+    ):
+        """
+        智能更新日K线（股票和指数通用）
+
+        Args:
+            code: 完整代码（如 sh.600519 或 sh.000001）
+            pure_code: 纯数字代码（如 600519 或 000001）
             kline_type: K线类型（'daily'）
             db_conn: 数据库连接
             db_cursor: 数据库游标
+            is_index: 是否为指数（默认False）
         """
         # 先检查数据库中是否已有今天的数据
         if RealtimeDataUpdater._check_today_data_exists(code, kline_type, db_cursor):
             return
 
         today = datetime.now().strftime("%Y%m%d")
+        data_type = "指数" if is_index else "股票"
 
         # 从 AkShare 获取当天日K数据
-        logger.info(f"从AkShare获取 {code} {kline_type} 数据...")
-        df = ak.stock_zh_a_hist(
-            symbol=pure_code,
-            period="daily",
-            start_date=today,
-            end_date=today,
-            adjust="qfq",
+        logger.info(f"从AkShare获取 {code} {data_type}{kline_type} 数据...")
+        df = RealtimeDataUpdater._fetch_daily_kline_from_akshare(
+            pure_code, today, is_index
         )
 
         if df.empty:
-            logger.warning(f"{code} 当天无日K数据（可能未开盘或停牌）")
+            logger.warning(f"{code} 当天无{data_type}日K数据（可能未开盘或停牌）")
             return
 
         row = df.iloc[-1]
@@ -259,7 +295,7 @@ class RealtimeDataUpdater:
             RealtimeDataUpdater._save_to_history_table(
                 code, kline_type, start_time, kline_data, db_conn, db_cursor
             )
-            logger.info(f"√ {code} 日K线 → 历史表 (已完成)")
+            logger.info(f"√ {code} {data_type}日K线 → 历史表 (已完成)")
         else:
             # 进行中（盘中） → 实时表
             RealtimeDataUpdater._save_to_realtime_table(
@@ -271,7 +307,25 @@ class RealtimeDataUpdater:
                 db_conn,
                 db_cursor,
             )
-            logger.info(f"√ {code} 日K线 → 实时表 (进行中)")
+            logger.info(f"√ {code} {data_type}日K线 → 实时表 (进行中)")
+
+    @staticmethod
+    def _update_daily_smart(
+        code: str, pure_code: str, kline_type: str, db_conn, db_cursor
+    ):
+        """
+        智能更新股票日K线
+
+        Args:
+            code: 完整股票代码（如 sh.600519）
+            pure_code: 纯数字代码（如 600519）
+            kline_type: K线类型（'daily'）
+            db_conn: 数据库连接
+            db_cursor: 数据库游标
+        """
+        RealtimeDataUpdater._update_daily_kline_smart(
+            code, pure_code, kline_type, db_conn, db_cursor, is_index=False
+        )
 
     @staticmethod
     def _update_minute_smart(
@@ -723,54 +777,6 @@ class RealtimeDataUpdater:
             db_conn: 数据库连接
             db_cursor: 数据库游标
         """
-        # 先检查数据库中是否已有今天的数据
-        if RealtimeDataUpdater._check_today_data_exists(code, kline_type, db_cursor):
-            return
-
-        today = datetime.now().strftime("%Y%m%d")
-
-        # 从 AkShare 获取指数日K数据（注意：使用 index_zh_a_hist）
-        logger.info(f"从AkShare获取 {code} 指数{kline_type} 数据...")
-        df = ak.index_zh_a_hist(
-            symbol=pure_code,
-            period="daily",
-            start_date=today,
-            end_date=today,
+        RealtimeDataUpdater._update_daily_kline_smart(
+            code, pure_code, kline_type, db_conn, db_cursor, is_index=True
         )
-
-        if df.empty:
-            logger.warning(f"{code} 当天无指数日K数据（可能未开盘）")
-            return
-
-        row = df.iloc[-1]
-        start_time, end_time, is_finished = KLineTimeRules.get_kline_at_time("daily")
-
-        kline_data = {
-            "open": float(row["开盘"]),
-            "high": float(row["最高"]),
-            "low": float(row["最低"]),
-            "close": float(row["收盘"]),
-            "volume": int(row["成交量"]) * 100,
-            "amount": float(row["成交额"]),
-            "turn": float((row["换手率"])),
-        }
-
-        # 智能分流存储
-        if is_finished:
-            # 已完成（收盘后） → 历史表
-            RealtimeDataUpdater._save_to_history_table(
-                code, kline_type, start_time, kline_data, db_conn, db_cursor
-            )
-            logger.info(f"√ {code} 指数日K线 → 历史表 (已完成)")
-        else:
-            # 进行中（盘中） → 实时表
-            RealtimeDataUpdater._save_to_realtime_table(
-                code,
-                kline_type,
-                start_time,
-                kline_data,
-                is_finished,
-                db_conn,
-                db_cursor,
-            )
-            logger.info(f"√ {code} 指数日K线 → 实时表 (进行中)")
