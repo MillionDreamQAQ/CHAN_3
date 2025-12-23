@@ -116,6 +116,10 @@ class RealtimeDataUpdater:
         """
         检查数据库中今天的数据是否完整（历史表 + 实时表）
 
+        优化策略：
+        1. 日K线收盘后：使用 EXISTS 快速检查（不需要 COUNT）
+        2. 分钟线：先计算已完成数量，盘前直接返回，避免查询
+
         Args:
             code: 股票/指数代码
             kline_type: K线类型
@@ -127,68 +131,88 @@ class RealtimeDataUpdater:
         today = datetime.now().date()
         now = datetime.now()
 
-        # 1. 检查历史表
+        # 1. 获取表名
         table_name = RealtimeDataUpdater.TABLE_MAP.get(kline_type)
         if not table_name:
             return False
 
         try:
-            # 获取历史表中今天的数据数量
+            # 2. 日K线/周K线/月K线特殊处理
             if kline_type in ["daily", "weekly", "monthly"]:
-                # 日线/周线/月线：只有1根
-                sql = f"SELECT COUNT(*) FROM {table_name} WHERE code = %s AND date = %s"
-                db_cursor.execute(sql, (code, today))
-                history_count = db_cursor.fetchone()[0]
-
-                # 如果已收盘且历史表有数据，说明数据完整
                 _, _, is_finished = KLineTimeRules.get_kline_at_time(kline_type, now)
-                if is_finished and history_count > 0:
-                    logger.info(
-                        f"√ {code} {kline_type} 已收盘且数据完整，跳过AkShare请求"
-                    )
-                    return True
 
+                if is_finished:
+                    # 收盘后：只需检查历史表是否有数据（使用 EXISTS 而非 COUNT）
+                    sql = f"SELECT EXISTS(SELECT 1 FROM {table_name} WHERE code = %s AND date = %s)"
+                    db_cursor.execute(sql, (code, today))
+                    exists = db_cursor.fetchone()[0]
+
+                    if exists:
+                        logger.info(
+                            f"√ {code} {kline_type} 已收盘且数据完整，跳过AkShare请求"
+                        )
+                        return True
+                    else:
+                        return False
+                else:
+                    # 盘中：数据不完整，需要更新
+                    return False
+
+            # 3. 分钟线处理
             else:
-                # 分钟线：需要检查数据是否完整
-                sql = f"SELECT COUNT(*) FROM {table_name} WHERE code = %s AND time::date = %s"
-                db_cursor.execute(sql, (code, today))
-                history_count = db_cursor.fetchone()[0]
-
-            # 2. 检查实时表
-            sql_realtime = """
-                SELECT COUNT(*) FROM stock_kline_realtime
-                WHERE code = %s AND kline_type = %s AND datetime::date = %s
-            """
-            db_cursor.execute(sql_realtime, (code, kline_type, today))
-            realtime_count = db_cursor.fetchone()[0]
-
-            total_count = history_count + realtime_count
-
-            # 3. 判断数据是否完整（针对分钟线）
-            if kline_type in ["5min", "15min", "30min", "60min"]:
-                # 获取所有K线时间点
+                # 先计算已完成的K线数量（避免不必要的数据库查询）
                 all_kline_times = KLineTimeRules.get_all_kline_times(kline_type, today)
+                minutes = int(kline_type.replace("min", ""))
 
-                # 计算已经完成的K线数量
                 finished_klines = sum(
                     1
                     for kt in all_kline_times
-                    if now >= kt + timedelta(minutes=int(kline_type.replace("min", "")))
+                    if now >= kt + timedelta(minutes=minutes)
                 )
 
-                # 如果已完成的K线数量 == 数据库中的数量，说明数据完整
-                if total_count >= finished_klines and finished_klines > 0:
+                # 盘前（finished_klines = 0）：直接返回 False，不查数据库
+                if finished_klines == 0:
+                    return False
+
+                # 查询历史表数据量
+                sql_history = f"SELECT COUNT(*) FROM {table_name} WHERE code = %s AND time::date = %s"
+                db_cursor.execute(sql_history, (code, today))
+                history_count = db_cursor.fetchone()[0]
+
+                # 如果已收盘（finished_klines = 全部），只需检查历史表
+                if finished_klines == len(all_kline_times):
+                    if history_count >= finished_klines:
+                        logger.info(
+                            f"√ {code} {kline_type} 已收盘且数据完整 (数据库{history_count}条)，跳过AkShare请求"
+                        )
+                        return True
+                    else:
+                        logger.info(
+                            f"× {code} {kline_type} 已收盘但数据不完整 (应有{finished_klines}根，数据库仅{history_count}条)，需要从AkShare更新"
+                        )
+                        return False
+
+                # 盘中：需要检查历史表 + 实时表
+                sql_realtime = """
+                    SELECT COUNT(*) FROM stock_kline_realtime
+                    WHERE code = %s AND kline_type = %s AND datetime::date = %s
+                """
+                db_cursor.execute(sql_realtime, (code, kline_type, today))
+                realtime_count = db_cursor.fetchone()[0]
+
+                total_count = history_count + realtime_count
+
+                # 判断数据完整性
+                if total_count >= finished_klines:
                     logger.info(
                         f"√ {code} {kline_type} 数据完整 (已完成{finished_klines}根，数据库{total_count}条)，跳过AkShare请求"
                     )
                     return True
                 else:
                     logger.info(
-                        f"x {code} {kline_type} 数据不完整 (已完成{finished_klines}根，数据库仅{total_count}条)，需要从AkShare更新"
+                        f"× {code} {kline_type} 数据不完整 (已完成{finished_klines}根，数据库仅{total_count}条)，需要从AkShare更新"
                     )
                     return False
-
-            return False
 
         except Exception as e:
             logger.warning(f"检查今天数据失败: {e}，继续从AkShare获取")
