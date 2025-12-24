@@ -36,13 +36,9 @@ python run.py
 
 2、参考doc/database_readme.md初始化数据库，并创建.env文件（Backend/.env和根目录下的.env都要创建）。
 
-3、运行data/import_stocks_info.py导入股票信息。
+3、运行data/import_stocks_and_index.py导入股票指数和拼音信息。
 
-4、运行data/import_stocks_data.py测试数据库连接。
-
-5、运行data/generate_pinyin.py生成股票名称的拼音，以供模糊搜索。
-
-6、运行根目录下的start_all.bat文件，启动所有服务。
+4、运行根目录下的start_all.bat文件，启动所有服务。
 
 需要注意的事项：
 
@@ -50,6 +46,6 @@ python run.py
 
 2、确保.env文件中的数据库连接配置正确。
 
-3、数据基于baostock，无实时数据，当前仅支持历史数据查询。
+3、数据基于baostock和akshare，已支持实时数据，但性能较差，有能力可以使用其他数据源。
 
 4、投资时请谨慎，本项目仅提供技术支持，不承担任何投资风险。
