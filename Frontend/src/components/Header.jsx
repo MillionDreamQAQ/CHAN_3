@@ -46,6 +46,17 @@ const Header = ({
   const [stocks, setStocks] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const getStockName = (stockCode) => {
+    const stock = stocks.find((s) => s.code === stockCode);
+    return stock ? stock.name : "";
+  };
+
+  const displayValue = useMemo(() => {
+    if (!code) return "";
+    const name = getStockName(code);
+    return name ? `${name} - ${code}` : code;
+  }, [code, stocks]);
+
   useEffect(() => {
     const loadStocks = async () => {
       setStocksLoading(true);
@@ -292,18 +303,18 @@ const Header = ({
             </div>
             <div className="form-group">
               <AutoComplete
-                value={code}
+                value={displayValue}
                 options={searchOptions}
                 open={dropdownOpen}
                 showSearch={{ onSearch: handleSearch }}
                 popupMatchSelectWidth={300}
                 allowClear={true}
-                onFocus={() => {
+                onClick={() => {
                   handleSearch("");
                   setDropdownOpen(true);
                 }}
-                onSelect={(code) => {
-                  setCode(code);
+                onSelect={(selectedCode) => {
+                  setCode(selectedCode);
                   setDropdownOpen(false);
                 }}
                 onBlur={() => {
@@ -312,16 +323,21 @@ const Header = ({
                   }
                   setDropdownOpen(false);
                 }}
-                onChange={(code) => {
-                  setCode(code);
-                  if (!code) {
+                onChange={(value) => {
+                  if (!value) {
+                    setCode("");
                     handleSearch("");
                     setDropdownOpen(true);
+                    return;
                   }
+                  const extractedCode = value.includes("-")
+                    ? value.split("-")[1]
+                    : value;
+                  setCode(extractedCode);
                 }}
                 placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
                 style={{
-                  width: "160px",
+                  width: "200px",
                   height: "32px",
                   backgroundColor: darkMode ? "#333" : "#fff",
                   color: darkMode ? "#fff" : "#333",
