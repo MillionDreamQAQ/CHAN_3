@@ -32,6 +32,11 @@ function App() {
         };
   });
 
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem("favorites");
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const themeConfig = {
     algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
     token: {
@@ -52,6 +57,10 @@ function App() {
     localStorage.setItem("indicators", JSON.stringify(indicators));
   }, [indicators]);
 
+  useEffect(() => {
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+  }, [favorites]);
+
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
   };
@@ -61,6 +70,16 @@ function App() {
       ...prev,
       [key]: !prev[key],
     }));
+  }, []);
+
+  const toggleFavorite = useCallback((code) => {
+    setFavorites((prev) => {
+      if (prev.includes(code)) {
+        return prev.filter((c) => c !== code);
+      } else {
+        return [...prev, code];
+      }
+    });
   }, []);
 
   const handleQuery = async (request) => {
@@ -93,6 +112,8 @@ function App() {
           indicators={indicators}
           onToggleIndicator={toggleIndicator}
           onToggleDarkMode={toggleDarkMode}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
         />
         <div className="main-content">
           <ChartContainer

@@ -8,7 +8,12 @@ import {
   message,
   Checkbox,
 } from "antd";
-import { BulbOutlined, BulbFilled } from "@ant-design/icons";
+import {
+  BulbOutlined,
+  BulbFilled,
+  StarOutlined,
+  StarFilled,
+} from "@ant-design/icons";
 import { getColors } from "../config/config";
 import dayjs from "dayjs";
 import axios from "axios";
@@ -22,10 +27,13 @@ const Header = ({
   onToggleDarkMode,
   indicators,
   onToggleIndicator,
+  favorites,
+  onToggleFavorite,
 }) => {
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
 
   const [code, setCode] = useState("sh.000001");
+  const [curCode, setCurCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
     new dayjs().subtract(3, "year").format("YYYY-MM-DD")
@@ -35,6 +43,8 @@ const Header = ({
   const [searchOptions, setSearchOptions] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
   const [fuse, setFuse] = useState(null);
+  const [stocks, setStocks] = useState([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => {
     const loadStocks = async () => {
@@ -44,9 +54,10 @@ const Header = ({
           "http://localhost:8000/api/stocks/list"
         );
         if (response.data.success) {
-          const stocks = response.data.data;
+          const stocksData = response.data.data;
+          setStocks(stocksData);
 
-          const fuseInstance = new Fuse(stocks, {
+          const fuseInstance = new Fuse(stocksData, {
             keys: [
               { name: "code", weight: 2.5 },
               { name: "name", weight: 2.0 },
@@ -77,33 +88,67 @@ const Header = ({
       begin_time: beginTime,
       end_time: endTime,
     });
+    setCurCode(code);
   }, []);
 
+  const formatOption = (item, isFavorite) => ({
+    value: item.code,
+    label: (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "4px 0",
+        }}
+      >
+        <span style={{ fontWeight: 500 }}>
+          {isFavorite && (
+            <StarFilled style={{ color: "#fadb14", marginRight: "6px" }} />
+          )}
+          {item.name}
+        </span>
+        <span style={{ color: "#999", fontSize: "12px" }}>{item.code}</span>
+      </div>
+    ),
+  });
+
   const handleSearch = (searchText) => {
-    if (!searchText || searchText.trim().length < 1 || !fuse) {
+    if (!fuse || !stocks) {
       setSearchOptions([]);
+      return;
+    }
+
+    if (!searchText || searchText.trim().length < 1) {
+      if (favorites.length === 0) {
+        setSearchOptions([]);
+        return;
+      }
+
+      const favoriteStocks = stocks.filter((stock) =>
+        favorites.includes(stock.code)
+      );
+      const options = favoriteStocks.map((item) => formatOption(item, true));
+      setSearchOptions(options);
       return;
     }
 
     const results = fuse.search(searchText.trim()).slice(0, 20);
 
-    const options = results.map(({ item }) => ({
-      value: item.code,
-      label: (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            padding: "4px 0",
-          }}
-        >
-          <span style={{ fontWeight: 500 }}>{item.name}</span>
-          <span style={{ color: "#999", fontSize: "12px" }}>{item.code}</span>
-        </div>
-      ),
-    }));
+    const favoriteResults = [];
+    const normalResults = [];
 
-    setSearchOptions(options);
+    results.forEach((result) => {
+      const isFavorite = favorites.includes(result.item.code);
+      const option = formatOption(result.item, isFavorite);
+
+      if (isFavorite) {
+        favoriteResults.push(option);
+      } else {
+        normalResults.push(option);
+      }
+    });
+
+    setSearchOptions([...favoriteResults, ...normalResults]);
   };
 
   const handleSubmit = (e) => {
@@ -127,6 +172,7 @@ const Header = ({
         return;
       }
     }
+    setCurCode(code);
     onQuery({
       code,
       kline_type: klineType,
@@ -207,6 +253,24 @@ const Header = ({
         <div className="header-right">
           <form className="query-form" onSubmit={handleSubmit}>
             <div className="form-group">
+              <Button
+                type="text"
+                icon={
+                  favorites.includes(curCode) ? (
+                    <StarFilled />
+                  ) : (
+                    <StarOutlined />
+                  )
+                }
+                onClick={() => onToggleFavorite(curCode)}
+                className="favorite-toggle"
+                title={favorites.includes(curCode) ? "取消收藏" : "收藏"}
+                style={{
+                  color: favorites.includes(curCode) ? "#fadb14" : undefined,
+                }}
+              />
+            </div>
+            <div className="form-group">
               <Select
                 value={klineType}
                 onChange={setKlineType}
@@ -230,15 +294,31 @@ const Header = ({
               <AutoComplete
                 value={code}
                 options={searchOptions}
+                open={dropdownOpen}
                 showSearch={{ onSearch: handleSearch }}
-                onClick={() => setCode(null)}
+                popupMatchSelectWidth={300}
+                allowClear={true}
+                onFocus={() => {
+                  handleSearch("");
+                  setDropdownOpen(true);
+                }}
+                onSelect={(code) => {
+                  setCode(code);
+                  setDropdownOpen(false);
+                }}
                 onBlur={() => {
                   if (!code) {
                     setCode("sh.000001");
                   }
+                  setDropdownOpen(false);
                 }}
-                onSelect={(value) => setCode(value)}
-                onChange={(value) => setCode(value)}
+                onChange={(code) => {
+                  setCode(code);
+                  if (!code) {
+                    handleSearch("");
+                    setDropdownOpen(true);
+                  }
+                }}
                 placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
                 style={{
                   width: "160px",
