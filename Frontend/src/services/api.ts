@@ -3,7 +3,7 @@ import type { ChanRequest, ChanResponse } from '../types';
 
 const apiClient = axios.create({
   baseURL: '/api',
-  timeout: 60000,
+  timeout: 90000,
   headers: {
     'Content-Type': 'application/json'
   }
