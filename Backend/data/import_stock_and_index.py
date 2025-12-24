@@ -528,3 +528,21 @@ def import_all_stocks_and_indices():
     """
     importer = StockIndexImporter()
     return importer.import_all()
+
+
+if __name__ == "__main__":
+    # 导入股票和指数基本信息
+    result = import_all_stocks_and_indices()
+
+    if result["success"]:
+        logger.info("\n导入成功！")
+        logger.info("新增: %d 条记录", result["new"])
+        logger.info("更新: %d 条记录", result["updated"])
+        logger.info("股票: %d 只", result["stocks"])
+        logger.info("指数: %d 个", result["indices"])
+
+        # 显示示例数据
+        importer = StockIndexImporter()
+        importer.show_sample_data()
+    else:
+        logger.error("\n导入失败: %s", result.get("error", "未知错误"))
