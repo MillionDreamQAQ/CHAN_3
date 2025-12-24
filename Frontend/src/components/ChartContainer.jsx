@@ -515,8 +515,14 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   }, [indicators.zs]);
 
   useEffect(() => {
+    // apply options not work, use _private__attach and detach instead
     if (seriesRefs.current.markers) {
-      seriesRefs.current.markers.applyOptions({ visible: indicators.bsPoints });
+      if (indicators.bsPoints) {
+        seriesRefs.current.markers._private__attach();
+      } else {
+        seriesRefs.current.markers.detach();
+      }
+      // seriesRefs.current.markers.applyOptions({ visible: indicators.bsPoints });
     }
   }, [indicators.bsPoints]);
 
