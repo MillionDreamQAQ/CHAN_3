@@ -26,7 +26,7 @@ const Header = ({
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
-    new dayjs().subtract(5, "year").format("YYYY-MM-DD")
+    new dayjs().subtract(3, "year").format("YYYY-MM-DD")
   );
   const [endTime, setEndTime] = useState(dayjs().format("YYYY-MM-DD"));
 
