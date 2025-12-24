@@ -3,7 +3,8 @@ import Header from "./components/Header";
 import ChartContainer from "./components/ChartContainer";
 import { chanApi } from "./services/api";
 import { showMessage } from "./utils/utils";
-import { message } from "antd";
+import { ConfigProvider, message, theme } from "antd";
+
 import "./App.css";
 
 function App() {
@@ -30,6 +31,13 @@ function App() {
           bsPoints: true,
         };
   });
+
+  const themeConfig = {
+    algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+    token: {
+      colorPrimary: "#177ddc",
+    },
+  };
 
   useEffect(() => {
     if (darkMode) {
@@ -75,24 +83,26 @@ function App() {
   };
 
   return (
-    <div className="app">
-      {contextHolder}
-      <Header
-        onQuery={handleQuery}
-        loading={loading}
-        darkMode={darkMode}
-        indicators={indicators}
-        onToggleIndicator={toggleIndicator}
-        onToggleDarkMode={toggleDarkMode}
-      />
-      <div className="main-content">
-        <ChartContainer
-          data={data}
+    <ConfigProvider theme={themeConfig}>
+      <div className="app">
+        {contextHolder}
+        <Header
+          onQuery={handleQuery}
+          loading={loading}
           darkMode={darkMode}
           indicators={indicators}
+          onToggleIndicator={toggleIndicator}
+          onToggleDarkMode={toggleDarkMode}
         />
+        <div className="main-content">
+          <ChartContainer
+            data={data}
+            darkMode={darkMode}
+            indicators={indicators}
+          />
+        </div>
       </div>
-    </div>
+    </ConfigProvider>
   );
 }
 

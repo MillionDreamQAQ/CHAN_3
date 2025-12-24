@@ -69,24 +69,6 @@
   align-items: center;
 }
 
-/* 股票选择器Placeholder样式 */
-.ant-select-placeholder {
-  color: rgba(0, 0, 0, 0.45) !important;
-}
-
-.dark-mode .ant-select-placeholder {
-  color: rgba(255, 255, 255, 0.45) !important;
-}
-
-/* 级别选择器Selecting样式 */
-.ant-select-open .ant-select-content-value {
-  color: rgba(0, 0, 0, 0.45) !important;
-}
-
-.dark-mode .ant-select-open .ant-select-content-value {
-  color: rgba(255, 255, 255, 0.45) !important;
-}
-
 .query-button {
   padding: 8px 24px;
   color: white;
