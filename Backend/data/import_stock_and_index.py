@@ -40,37 +40,45 @@ class StockIndexImporter:
 
             try:
                 # 检查字段是否已存在
-                db.cursor.execute("""
+                db.cursor.execute(
+                    """
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = 'stocks'
                     AND column_name IN ('type', 'pinyin', 'pinyin_short')
-                """)
+                """
+                )
                 existing_columns = [row[0] for row in db.cursor.fetchall()]
 
                 # 添加 type 字段
-                if 'type' not in existing_columns:
+                if "type" not in existing_columns:
                     logger.info("添加 type 字段...")
-                    db.cursor.execute("""
+                    db.cursor.execute(
+                        """
                         ALTER TABLE stocks
                         ADD COLUMN type VARCHAR(20) DEFAULT 'stock'
-                    """)
+                    """
+                    )
 
                 # 添加 pinyin 字段
-                if 'pinyin' not in existing_columns:
+                if "pinyin" not in existing_columns:
                     logger.info("添加 pinyin 字段...")
-                    db.cursor.execute("""
+                    db.cursor.execute(
+                        """
                         ALTER TABLE stocks
                         ADD COLUMN pinyin VARCHAR(200)
-                    """)
+                    """
+                    )
 
                 # 添加 pinyin_short 字段
-                if 'pinyin_short' not in existing_columns:
+                if "pinyin_short" not in existing_columns:
                     logger.info("添加 pinyin_short 字段...")
-                    db.cursor.execute("""
+                    db.cursor.execute(
+                        """
                         ALTER TABLE stocks
                         ADD COLUMN pinyin_short VARCHAR(50)
-                    """)
+                    """
+                    )
 
                 db.conn.commit()
                 logger.info("数据库字段准备完成")
@@ -200,25 +208,29 @@ class StockIndexImporter:
                 """为指数代码添加市场前缀"""
                 code_str = str(code)
                 # 去除可能存在的前缀
-                code_str = code_str.replace('sh.', '').replace('sz.', '')
+                code_str = code_str.replace("sh.", "").replace("sz.", "")
 
                 # 上证指数以 0、1 开头
-                if code_str.startswith(('0', '1')):
+                if code_str.startswith(("0", "1")):
                     return f"sh.{code_str}"
                 # 深证指数以 3、8、9 开头
-                elif code_str.startswith(('3', '8', '9')):
+                elif code_str.startswith(("3", "8", "9")):
                     return f"sz.{code_str}"
                 else:
                     # 默认添加 sh 前缀
                     return f"sh.{code_str}"
 
             # 转换为统一格式
-            df_clean = pd.DataFrame({
-                "code": df_index["index_code"].apply(format_index_code),
-                "name": df_index["display_name"],
-                "list_date": pd.to_datetime(df_index["publish_date"], errors="coerce"),
-                "type": "index",
-            })
+            df_clean = pd.DataFrame(
+                {
+                    "code": df_index["index_code"].apply(format_index_code),
+                    "name": df_index["display_name"],
+                    "list_date": pd.to_datetime(
+                        df_index["publish_date"], errors="coerce"
+                    ),
+                    "type": "index",
+                }
+            )
 
             # 过滤掉代码或名称为空的数据
             df_clean = df_clean.dropna(subset=["code", "name"])
@@ -246,9 +258,9 @@ class StockIndexImporter:
 
         try:
             # 生成拼音全拼（去除音调）
-            pinyin = ''.join(lazy_pinyin(name))
+            pinyin = "".join(lazy_pinyin(name))
             # 生成拼音首字母
-            pinyin_short = ''.join(lazy_pinyin(name, style=Style.FIRST_LETTER))
+            pinyin_short = "".join(lazy_pinyin(name, style=Style.FIRST_LETTER))
             return pinyin, pinyin_short
         except Exception as e:
             logger.warning(f"生成拼音失败 {name}: {e}")
@@ -333,24 +345,32 @@ class StockIndexImporter:
         logger.info("创建搜索索引...")
         try:
             # 创建拼音索引
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_stocks_pinyin
                 ON stocks(pinyin)
-            """)
-            cursor.execute("""
+            """
+            )
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_stocks_pinyin_short
                 ON stocks(pinyin_short)
-            """)
+            """
+            )
             # 创建名称索引
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_stocks_name
                 ON stocks(name)
-            """)
+            """
+            )
             # 创建类型索引
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_stocks_type
                 ON stocks(type)
-            """)
+            """
+            )
             conn.commit()
             logger.info("索引创建成功")
         except Exception as e:
@@ -431,38 +451,66 @@ class StockIndexImporter:
                 return
 
             # 显示股票示例
-            db.cursor.execute("""
+            db.cursor.execute(
+                """
                 SELECT code, name, type, pinyin, pinyin_short
                 FROM stocks
                 WHERE type = 'stock'
                 LIMIT 5
-            """)
+            """
+            )
 
             logger.info("\n股票示例数据:")
-            logger.info("%-15s %-20s %-10s %-30s %-15s",
-                       "代码", "名称", "类型", "拼音", "首字母")
+            logger.info(
+                "%-15s %-20s %-10s %-30s %-15s",
+                "代码",
+                "名称",
+                "类型",
+                "拼音",
+                "首字母",
+            )
             logger.info("-" * 90)
 
             for code, name, typ, pinyin, pinyin_short in db.cursor.fetchall():
-                logger.info("%-15s %-20s %-10s %-30s %-15s",
-                           code, name, typ, pinyin or '', pinyin_short or '')
+                logger.info(
+                    "%-15s %-20s %-10s %-30s %-15s",
+                    code,
+                    name,
+                    typ,
+                    pinyin or "",
+                    pinyin_short or "",
+                )
 
             # 显示指数示例
-            db.cursor.execute("""
+            db.cursor.execute(
+                """
                 SELECT code, name, type, pinyin, pinyin_short
                 FROM stocks
                 WHERE type = 'index'
                 LIMIT 5
-            """)
+            """
+            )
 
             logger.info("\n指数示例数据:")
-            logger.info("%-15s %-20s %-10s %-30s %-15s",
-                       "代码", "名称", "类型", "拼音", "首字母")
+            logger.info(
+                "%-15s %-20s %-10s %-30s %-15s",
+                "代码",
+                "名称",
+                "类型",
+                "拼音",
+                "首字母",
+            )
             logger.info("-" * 90)
 
             for code, name, typ, pinyin, pinyin_short in db.cursor.fetchall():
-                logger.info("%-15s %-20s %-10s %-30s %-15s",
-                           code, name, typ, pinyin or '', pinyin_short or '')
+                logger.info(
+                    "%-15s %-20s %-10s %-30s %-15s",
+                    code,
+                    name,
+                    typ,
+                    pinyin or "",
+                    pinyin_short or "",
+                )
 
 
 def import_all_stocks_and_indices():
@@ -480,21 +528,3 @@ def import_all_stocks_and_indices():
     """
     importer = StockIndexImporter()
     return importer.import_all()
-
-
-if __name__ == "__main__":
-    # 导入股票和指数基本信息
-    result = import_all_stocks_and_indices()
-
-    if result["success"]:
-        logger.info("\n导入成功！")
-        logger.info("新增: %d 条记录", result["new"])
-        logger.info("更新: %d 条记录", result["updated"])
-        logger.info("股票: %d 只", result["stocks"])
-        logger.info("指数: %d 个", result["indices"])
-
-        # 显示示例数据
-        importer = StockIndexImporter()
-        importer.show_sample_data()
-    else:
-        logger.error("\n导入失败: %s", result.get("error", "未知错误"))
