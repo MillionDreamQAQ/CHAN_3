@@ -1,18 +1,18 @@
 import { generate } from "@ant-design/colors";
 
 const BASE_COLORS = {
-  upColor: "#eb3532",
-  downColor: "#1dc36a",
+  upColor: "#F03F31",
+  downColor: "#24a03b",
   biLine: "#0048ff",
   segLine: "#ff0000",
   zsLine: "#ffb700",
   difLine: "#2962FF",
   deaLine: "#FF6D00",
   zeroLine: "#787B86",
-  ma5: "#e91e63",
-  ma10: "#ff9800",
-  ma20: "#00bcd4",
-  ma30: "#9c27b0",
+  ma5: "#EB2E00",
+  ma10: "#EABC01",
+  ma20: "#14EB00",
+  ma30: "#017EEB",
 };
 
 export const getColors = (isDarkMode = false) => {

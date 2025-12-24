@@ -329,7 +329,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     if (dataRefs.current.markers.length > 0 && seriesRefs.current.candlestick) {
       const updatedMarkers = dataRefs.current.markers.map((marker) => ({
         ...marker,
-        color: marker.shape === "arrowUp" ? COLORS.upColor : COLORS.sellMarker,
+        color: marker.shape === "arrowUp" ? COLORS.upColor : COLORS.downColor,
       }));
       dataRefs.current.markers = updatedMarkers;
 
