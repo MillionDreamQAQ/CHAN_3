@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   AutoComplete,
   DatePicker,
@@ -9,7 +9,7 @@ import {
   Checkbox,
 } from "antd";
 import { BulbOutlined, BulbFilled } from "@ant-design/icons";
-import { COLORS } from "../config/config";
+import { getColors } from "../config/config";
 import dayjs from "dayjs";
 import axios from "axios";
 import Fuse from "fuse.js";
@@ -23,6 +23,8 @@ const Header = ({
   indicators,
   onToggleIndicator,
 }) => {
+  const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
+
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [beginTime, setBeginTime] = useState(
@@ -196,8 +198,8 @@ const Header = ({
                 checked={indicators.bsPoints}
                 onChange={() => onToggleIndicator("bsPoints")}
               >
-                <span style={{ color: COLORS.buyMarker }}>买</span>
-                <span style={{ color: COLORS.sellMarker }}>卖</span>点
+                <span style={{ color: COLORS.upColor }}>买</span>
+                <span style={{ color: COLORS.downColor }}>卖</span>点
               </Checkbox>
             </div>
           </div>

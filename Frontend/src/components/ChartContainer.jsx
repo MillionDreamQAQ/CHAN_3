@@ -15,8 +15,8 @@ import {
   MACD_CONFIG,
 } from "../utils/utils";
 import {
-  COLORS,
-  LINE_SERIES_CONFIGS,
+  getColors,
+  getLineSeriesConfigs,
   CHART_SIZES,
   FORMAT_CONFIG,
   getChartConfig,
@@ -25,6 +25,12 @@ import {
 const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   const [loading, setLoading] = useState(true);
   const [klineInfo, setKlineInfo] = useState(null);
+
+  const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
+  const LINE_SERIES_CONFIGS = useMemo(
+    () => getLineSeriesConfigs(darkMode),
+    [darkMode]
+  );
 
   const containerRefs = useRef({
     main: null,
@@ -253,7 +259,92 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
 
     chartRefs.current.main.applyOptions(themeOptions);
     chartRefs.current.macd.applyOptions(themeOptions);
-  }, [darkMode]);
+
+    if (seriesRefs.current.candlestick) {
+      seriesRefs.current.candlestick.applyOptions({
+        upColor: COLORS.upColor,
+        downColor: COLORS.downColor,
+        wickUpColor: COLORS.upColor,
+        wickDownColor: COLORS.downColor,
+      });
+    }
+
+    if (seriesRefs.current.volume && dataRefs.current.kline.length > 0) {
+      const volumeData = dataRefs.current.kline.map((k) => ({
+        time: k.time,
+        value: k.volume,
+        color:
+          k.close >= k.open ? `${COLORS.upColor}4d` : `${COLORS.downColor}4d`,
+      }));
+      seriesRefs.current.volume.setData(volumeData);
+    }
+
+    seriesRefs.current.bi.forEach((series) => {
+      series.applyOptions({ color: LINE_SERIES_CONFIGS.bi.color });
+    });
+    seriesRefs.current.seg.forEach((series) => {
+      series.applyOptions({ color: LINE_SERIES_CONFIGS.seg.color });
+    });
+    seriesRefs.current.zs.forEach((series) => {
+      series.applyOptions({ color: LINE_SERIES_CONFIGS.zs.color });
+    });
+
+    if (seriesRefs.current.ma.ma5) {
+      seriesRefs.current.ma.ma5.applyOptions({
+        color: LINE_SERIES_CONFIGS.ma5.color,
+      });
+    }
+    if (seriesRefs.current.ma.ma10) {
+      seriesRefs.current.ma.ma10.applyOptions({
+        color: LINE_SERIES_CONFIGS.ma10.color,
+      });
+    }
+    if (seriesRefs.current.ma.ma20) {
+      seriesRefs.current.ma.ma20.applyOptions({
+        color: LINE_SERIES_CONFIGS.ma20.color,
+      });
+    }
+    if (seriesRefs.current.ma.ma30) {
+      seriesRefs.current.ma.ma30.applyOptions({
+        color: LINE_SERIES_CONFIGS.ma30.color,
+      });
+    }
+
+    if (seriesRefs.current.macdList.length > 0) {
+      const [histogram, dif, dea, zero] = seriesRefs.current.macdList;
+      if (histogram) {
+        histogram.applyOptions({ color: COLORS.downColor });
+      }
+      if (dif) {
+        dif.applyOptions({ color: LINE_SERIES_CONFIGS.dif.color });
+      }
+      if (dea) {
+        dea.applyOptions({ color: LINE_SERIES_CONFIGS.dea.color });
+      }
+      if (zero) {
+        zero.applyOptions({ color: LINE_SERIES_CONFIGS.zero.color });
+      }
+    }
+
+    if (dataRefs.current.markers.length > 0 && seriesRefs.current.candlestick) {
+      const updatedMarkers = dataRefs.current.markers.map((marker) => ({
+        ...marker,
+        color: marker.shape === "arrowUp" ? COLORS.upColor : COLORS.sellMarker,
+      }));
+      dataRefs.current.markers = updatedMarkers;
+
+      if (seriesRefs.current.markers) {
+        seriesRefs.current.markers.detach();
+      }
+      seriesRefs.current.markers = createSeriesMarkers(
+        seriesRefs.current.candlestick,
+        updatedMarkers
+      );
+      if (seriesRefs.current.markers && indicators.bsPoints) {
+        seriesRefs.current.markers._private__attach();
+      }
+    }
+  }, [darkMode, COLORS, LINE_SERIES_CONFIGS, indicators.bsPoints]);
 
   const klineData = useMemo(() => {
     if (!data?.klines) return [];
@@ -404,7 +495,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         return {
           time: convertToUnixTimestamp(bs.time),
           position: bs.is_buy ? "belowBar" : "aboveBar",
-          color: bs.is_buy ? COLORS.buyMarker : COLORS.sellMarker,
+          color: bs.is_buy ? COLORS.upColor : COLORS.downColor,
           shape: bs.is_buy ? "arrowUp" : "arrowDown",
           text: textData.text,
           size: 2,
@@ -438,7 +529,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       seriesRefs.current.macdList = [];
 
       if (data.klines && data.klines.length >= MACD_CONFIG.minDataLength) {
-        const macdData = calculateMACD(data.klines);
+        const macdData = calculateMACD(data.klines, COLORS);
 
         if (
           macdData.histogram.length > 0 &&

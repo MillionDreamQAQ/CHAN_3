@@ -1,5 +1,4 @@
 import { MACD, SMA } from "technicalindicators";
-import { COLORS } from "../config/config";
 import dayjs from "dayjs";
 
 export const MACD_CONFIG = {
@@ -35,9 +34,10 @@ export function showMessage(api, key, type, content, duration) {
 /**
  * 计算 MACD 指标
  * @param {Array} klines - K线数据数组
+ * @param {Object} colors - 颜色配置对象，包含 upColor 和 downColor
  * @returns {Object} 包含 dif、dea、histogram 的对象
  */
-export const calculateMACD = (klines) => {
+export const calculateMACD = (klines, colors = { upColor: '#eb3532', downColor: '#1dc36a' }) => {
   try {
     if (!klines || klines.length < MACD_CONFIG.minDataLength) {
       return { dif: [], dea: [], histogram: [] };
@@ -98,8 +98,8 @@ export const calculateMACD = (klines) => {
             value: item.histogram ?? 0,
             color:
               item.histogram >= 0
-                ? COLORS.upColor
-                : COLORS.downColor,
+                ? colors.upColor
+                : colors.downColor,
           });
         }
       }
