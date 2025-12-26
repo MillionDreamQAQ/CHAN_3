@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Button,
   Spin,
-  message,
   Checkbox,
   InputNumber,
   Modal,
@@ -24,7 +23,6 @@ import "./Header.css";
 
 const Header = ({
   onQuery,
-  loading,
   darkMode,
   onToggleDarkMode,
   indicators,
@@ -123,7 +121,6 @@ const Header = ({
     }
   }, [modalOpen]);
 
-  // 监听 favorites 变化，弹窗打开时刷新搜索结果
   useEffect(() => {
     if (modalOpen) {
       handleSearch(searchText);
