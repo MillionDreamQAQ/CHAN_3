@@ -5,6 +5,7 @@ API地址: http://localhost:8080
 """
 
 import logging
+import os
 import requests
 from datetime import datetime
 from typing import Optional
@@ -22,8 +23,8 @@ class CTdxStockAPI(CCommonStockApi):
     支持股票、ETF和指数的K线数据获取
     """
 
-    # API基础地址
-    API_BASE_URL = "http://localhost:8080"
+    # API基础地址（从环境变量读取，默认为localhost:8080）
+    API_BASE_URL = os.getenv("TDX_API_URL", "http://localhost:8080")
 
     # K线类型映射（TDX API格式）
     KLINE_TYPE_MAP = {
@@ -122,30 +123,21 @@ class CTdxStockAPI(CCommonStockApi):
         Returns:
             True: ETF, False: 非ETF
         """
-        # 提取纯数字代码
+        # 提取市场和代码
         if "." in code:
-            # 格式：sz.159929
             market, number = code.split(".")
+        elif len(code) >= 8:
+            market, number = code[:2], code[2:]
         else:
-            # 可能的旧格式：sz159929（兼容处理）
-            if len(code) >= 8:
-                market = code[:2]
-                number = code[2:]
-            else:
-                return False
+            return False
 
-        # 深圳 ETF：15xxxx, 16xxxx, 18xxxx
-        if market == "sz" and len(number) == 6 and number[:2] in ["15", "16", "18"]:
-            return True
-        # 上海 ETF：51xxxx, 52xxxx, 56xxxx, 58xxxx
-        if (
-            market == "sh"
-            and len(number) == 6
-            and number[:2] in ["51", "52", "56", "58"]
-        ):
-            return True
+        if len(number) != 6:
+            return False
 
-        return False
+        # ETF规则字典
+        etf_prefixes = {"sz": ["15", "16", "18"], "sh": ["51", "52", "56", "58"]}
+
+        return market in etf_prefixes and number[:2] in etf_prefixes[market]
 
     def _is_index_code(self, code: str) -> bool:
         """
@@ -207,8 +199,7 @@ class CTdxStockAPI(CCommonStockApi):
             DATA_FIELD.FIELD_LOW: float(kline_item["Low"]) / 1000.0,
             DATA_FIELD.FIELD_CLOSE: float(kline_item["Close"]) / 1000.0,
             DATA_FIELD.FIELD_VOLUME: float(kline_item["Volume"]),
-            DATA_FIELD.FIELD_TURNOVER: float(kline_item["Amount"])
-            / 1000.0,  # 成交额也除以1000
+            DATA_FIELD.FIELD_TURNOVER: float(kline_item["Amount"]) / 1000.0,
         }
 
         return CKLine_Unit(data_dict)
@@ -242,35 +233,33 @@ class CTdxStockAPI(CCommonStockApi):
         """
         try:
             import psycopg
-            import os
             from dotenv import load_dotenv
 
             load_dotenv()
 
             # 从数据库获取股票名称
-            conn = psycopg.connect(
+            with psycopg.connect(
                 host=os.getenv("DB_HOST", "localhost"),
                 port=os.getenv("DB_PORT", "5432"),
                 user=os.getenv("DB_USER", "postgres"),
                 password=os.getenv("DB_PASSWORD"),
                 dbname=os.getenv("DB_NAME", "stock_db"),
-            )
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM stocks WHERE code = %s", (self.code,))
-            row = cursor.fetchone()
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT name FROM stocks WHERE code = %s", (self.code,)
+                    )
+                    row = cursor.fetchone()
 
-            if row:
-                self.name = row[0]
-                self.is_stock = not self._is_index_code(self.code)
-                logger.debug(f"从数据库获取股票信息: {self.code} - {self.name}")
-            else:
-                # 数据库中没有，使用代码作为名称
-                self.name = self.code
-                self.is_stock = not self._is_index_code(self.code)
-                logger.warning(f"数据库中未找到 {self.code}，使用代码作为名称")
-
-            cursor.close()
-            conn.close()
+                    if row:
+                        self.name = row[0]
+                        self.is_stock = not self._is_index_code(self.code)
+                        logger.debug(f"从数据库获取股票信息: {self.code} - {self.name}")
+                    else:
+                        # 数据库中没有，使用代码作为名称
+                        self.name = self.code
+                        self.is_stock = not self._is_index_code(self.code)
+                        logger.warning(f"数据库中未找到 {self.code}，使用代码作为名称")
 
         except Exception as e:
             logger.warning(f"获取股票基本信息失败: {e}")
