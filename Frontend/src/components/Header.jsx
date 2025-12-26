@@ -1,18 +1,21 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  AutoComplete,
   Button,
-  Select,
   Spin,
   message,
   Checkbox,
   InputNumber,
+  Modal,
+  Input,
+  List,
+  Space,
 } from "antd";
 import {
   BulbOutlined,
   BulbFilled,
   StarOutlined,
   StarFilled,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { getColors } from "../config/config";
 import axios from "axios";
@@ -32,25 +35,25 @@ const Header = ({
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
 
   const [code, setCode] = useState("sh.000001");
-  const [curCode, setCurCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [limit, setLimit] = useState(2000);
 
-  const [searchOptions, setSearchOptions] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
   const [fuse, setFuse] = useState(null);
   const [stocks, setStocks] = useState([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const searchInputRef = useRef(null);
 
   const getStockName = (stockCode) => {
     const stock = stocks.find((s) => s.code === stockCode);
     return stock ? stock.name : "";
   };
 
-  const displayValue = useMemo(() => {
-    if (!code) return "";
-    const name = getStockName(code);
-    return name ? `${name} - ${code}` : code;
+  const currentStockName = useMemo(() => {
+    return getStockName(code);
   }, [code, stocks]);
 
   useEffect(() => {
@@ -94,271 +97,332 @@ const Header = ({
       kline_type: klineType,
       limit,
     });
-    setCurCode(code);
   }, []);
 
-  const formatOption = (item, isFavorite) => ({
-    value: item.code,
-    label: (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          padding: "4px 0",
-        }}
-      >
-        <span style={{ fontWeight: 500 }}>
-          {isFavorite && (
-            <StarFilled style={{ color: "#fadb14", marginRight: "6px" }} />
-          )}
-          {item.name}
-        </span>
-        <span style={{ color: "#999", fontSize: "12px" }}>{item.code}</span>
-      </div>
-    ),
-  });
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === "f") {
+        e.preventDefault();
+        setModalOpen(true);
+      }
+    };
 
-  const handleSearch = (searchText) => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (modalOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      handleSearch("");
+    } else {
+      setSearchText("");
+      setSearchResults([]);
+    }
+  }, [modalOpen]);
+
+  useEffect(() => {
+    if (code) {
+      onQuery({
+        code,
+        kline_type: klineType,
+        limit,
+      });
+    }
+  }, [code, klineType, limit]);
+
+  const handleSearch = (text) => {
     if (!fuse || !stocks) {
-      setSearchOptions([]);
+      setSearchResults([]);
       return;
     }
 
-    if (!searchText || searchText.trim().length < 1) {
+    if (!text || text.trim().length < 1) {
       if (favorites.length === 0) {
-        setSearchOptions([]);
+        setSearchResults([]);
         return;
       }
 
       const favoriteStocks = stocks.filter((stock) =>
         favorites.includes(stock.code)
       );
-      const options = favoriteStocks.map((item) => formatOption(item, true));
-      setSearchOptions(options);
+      setSearchResults(
+        favoriteStocks.map((item) => ({ ...item, isFavorite: true }))
+      );
       return;
     }
 
-    const results = fuse.search(searchText.trim()).slice(0, 20);
+    const results = fuse.search(text.trim()).slice(0, 20);
 
     const favoriteResults = [];
     const normalResults = [];
 
     results.forEach((result) => {
       const isFavorite = favorites.includes(result.item.code);
-      const option = formatOption(result.item, isFavorite);
-
       if (isFavorite) {
-        favoriteResults.push(option);
+        favoriteResults.push({ ...result.item, isFavorite: true });
       } else {
-        normalResults.push(option);
+        normalResults.push({ ...result.item, isFavorite: false });
       }
     });
 
-    setSearchOptions([...favoriteResults, ...normalResults]);
+    setSearchResults([...favoriteResults, ...normalResults]);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!code) {
-      message.warning("请输入股票代码");
-      return;
-    }
-    if (!limit || limit <= 0) {
-      message.warning("请输入有效的数据条数");
-      return;
-    }
-    setCurCode(code);
-    onQuery({
-      code,
-      kline_type: klineType,
-      limit,
-    });
+  const handleSelectStock = (stockCode) => {
+    setCode(stockCode);
+    setModalOpen(false);
   };
+
+  const openSearchModal = () => {
+    setModalOpen(true);
+  };
+
+  const klineGroups = [
+    { label: "月", value: "month" },
+    { label: "周", value: "week" },
+    { label: "日", value: "day" },
+    { label: "60", value: "60m" },
+    { label: "30", value: "30m" },
+    { label: "15", value: "15m" },
+    { label: "5", value: "5m" },
+    { label: "1", value: "1m" },
+  ];
 
   return (
-    <header className="app-header">
-      <div className="header-content">
-        <div className="header-left">
-          <Button
-            type="text"
-            icon={darkMode ? <BulbFilled /> : <BulbOutlined />}
-            onClick={onToggleDarkMode}
-            className="theme-toggle"
-            title={darkMode ? "切换到日间模式" : "切换到夜间模式"}
-          />
-          <div className="indicator-divider"></div>
-          <div className="indicators-control">
-            <div className="indicator-group">
-              <Checkbox
-                checked={indicators.ma5}
-                onChange={() => onToggleIndicator("ma5")}
-              >
-                <span style={{ color: COLORS.ma5 }}>MA5</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.ma10}
-                onChange={() => onToggleIndicator("ma10")}
-              >
-                <span style={{ color: COLORS.ma10 }}>MA10</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.ma20}
-                onChange={() => onToggleIndicator("ma20")}
-              >
-                <span style={{ color: COLORS.ma20 }}>MA20</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.ma30}
-                onChange={() => onToggleIndicator("ma30")}
-              >
-                <span style={{ color: COLORS.ma30 }}>MA30</span>
-              </Checkbox>
-            </div>
+    <>
+      <header className="app-header">
+        <div className="header-content">
+          <div className="header-left">
+            <Button
+              type="text"
+              icon={darkMode ? <BulbFilled /> : <BulbOutlined />}
+              onClick={onToggleDarkMode}
+              className="theme-toggle"
+              title={darkMode ? "切换到日间模式" : "切换到夜间模式"}
+            />
             <div className="indicator-divider"></div>
-            <div className="indicator-group">
-              <Checkbox
-                checked={indicators.bi}
-                onChange={() => onToggleIndicator("bi")}
-              >
-                <span style={{ color: COLORS.biLine }}>笔</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.seg}
-                onChange={() => onToggleIndicator("seg")}
-              >
-                <span style={{ color: COLORS.segLine }}>段</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.zs}
-                onChange={() => onToggleIndicator("zs")}
-              >
-                <span style={{ color: COLORS.zsLine }}>中枢</span>
-              </Checkbox>
-              <Checkbox
-                checked={indicators.bsPoints}
-                onChange={() => onToggleIndicator("bsPoints")}
-              >
-                <span style={{ color: COLORS.upColor }}>买</span>
-                <span style={{ color: COLORS.downColor }}>卖</span>点
-              </Checkbox>
+            <div className="indicators-control">
+              <div className="indicator-group">
+                <Checkbox
+                  checked={indicators.ma5}
+                  onChange={() => onToggleIndicator("ma5")}
+                >
+                  <span style={{ color: COLORS.ma5 }}>MA5</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.ma10}
+                  onChange={() => onToggleIndicator("ma10")}
+                >
+                  <span style={{ color: COLORS.ma10 }}>MA10</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.ma20}
+                  onChange={() => onToggleIndicator("ma20")}
+                >
+                  <span style={{ color: COLORS.ma20 }}>MA20</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.ma30}
+                  onChange={() => onToggleIndicator("ma30")}
+                >
+                  <span style={{ color: COLORS.ma30 }}>MA30</span>
+                </Checkbox>
+              </div>
+              <div className="indicator-divider"></div>
+              <div className="indicator-group">
+                <Checkbox
+                  checked={indicators.bi}
+                  onChange={() => onToggleIndicator("bi")}
+                >
+                  <span style={{ color: COLORS.biLine }}>笔</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.seg}
+                  onChange={() => onToggleIndicator("seg")}
+                >
+                  <span style={{ color: COLORS.segLine }}>段</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.zs}
+                  onChange={() => onToggleIndicator("zs")}
+                >
+                  <span style={{ color: COLORS.zsLine }}>中枢</span>
+                </Checkbox>
+                <Checkbox
+                  checked={indicators.bsPoints}
+                  onChange={() => onToggleIndicator("bsPoints")}
+                >
+                  <span style={{ color: COLORS.upColor }}>买</span>
+                  <span style={{ color: COLORS.downColor }}>卖</span>点
+                </Checkbox>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="header-right">
-          <form className="query-form" onSubmit={handleSubmit}>
-            <div className="form-group">
+          <div className="header-right">
+            <div className="stock-info">
+              <Button
+                type="text"
+                icon={<SearchOutlined />}
+                onClick={openSearchModal}
+                className="search-trigger"
+                title="搜索股票 (Ctrl+F)"
+              />
+              <span className="stock-display" onClick={openSearchModal}>
+                {currentStockName && (
+                  <span className="stock-name">{currentStockName}</span>
+                )}
+                <span className="stock-code">{code}</span>
+              </span>
               <Button
                 type="text"
                 icon={
-                  favorites.includes(curCode) ? (
-                    <StarFilled />
-                  ) : (
-                    <StarOutlined />
-                  )
+                  favorites.includes(code) ? <StarFilled /> : <StarOutlined />
                 }
-                onClick={() => onToggleFavorite(curCode)}
+                onClick={() => onToggleFavorite(code)}
                 className="favorite-toggle"
-                title={favorites.includes(curCode) ? "取消收藏" : "收藏"}
+                title={favorites.includes(code) ? "取消收藏" : "收藏"}
                 style={{
-                  color: favorites.includes(curCode) ? "#fadb14" : undefined,
+                  color: favorites.includes(code) ? "#fadb14" : undefined,
                 }}
               />
             </div>
-            <div className="form-group">
-              <Select
-                value={klineType}
-                onChange={setKlineType}
-                style={{
-                  width: "100px",
-                  backgroundColor: darkMode ? "#333" : "#fff",
-                  color: darkMode ? "#fff" : "#333",
-                }}
-                options={[
-                  { value: "day", label: "日线" },
-                  { value: "week", label: "周线" },
-                  { value: "month", label: "月线" },
-                  { value: "1m", label: "1分线" },
-                  { value: "5m", label: "5分线" },
-                  { value: "15m", label: "15分线" },
-                  { value: "30m", label: "30分线" },
-                  { value: "60m", label: "60分线" },
-                ]}
-              />
+            <div className="indicator-divider"></div>
+            <div className="kline-buttons">
+              <Space.Compact>
+                {klineGroups.slice(0, 3).map((item) => (
+                  <Button
+                    key={item.value}
+                    type={klineType === item.value ? "primary" : "default"}
+                    size="small"
+                    onClick={() => setKlineType(item.value)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </Space.Compact>
+              <div className="kline-divider"></div>
+              <Space.Compact>
+                {klineGroups.slice(3, 5).map((item) => (
+                  <Button
+                    key={item.value}
+                    type={klineType === item.value ? "primary" : "default"}
+                    size="small"
+                    onClick={() => setKlineType(item.value)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </Space.Compact>
+              <div className="kline-divider"></div>
+              <Space.Compact>
+                {klineGroups.slice(5, 8).map((item) => (
+                  <Button
+                    key={item.value}
+                    type={klineType === item.value ? "primary" : "default"}
+                    size="small"
+                    onClick={() => setKlineType(item.value)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </Space.Compact>
             </div>
-            <div className="form-group">
-              <AutoComplete
-                value={displayValue}
-                options={searchOptions}
-                open={dropdownOpen}
-                showSearch={{ onSearch: handleSearch }}
-                popupMatchSelectWidth={300}
-                allowClear={true}
-                onClick={() => {
-                  handleSearch("");
-                  setDropdownOpen(true);
-                }}
-                onSelect={(selectedCode) => {
-                  setCode(selectedCode);
-                  setDropdownOpen(false);
-                }}
-                onBlur={() => {
-                  if (!code) {
-                    setCode(curCode);
-                  }
-                  setDropdownOpen(false);
-                }}
-                onChange={(value) => {
-                  if (!value) {
-                    setCode("");
-                    handleSearch("");
-                    setDropdownOpen(true);
-                    return;
-                  }
-                  const extractedCode = value.includes("-")
-                    ? value.split("-")[1]
-                    : value;
-                  setCode(extractedCode);
-                }}
-                placeholder={stocksLoading ? "加载中..." : "代码/名称/拼音"}
-                style={{
-                  width: "200px",
-                  height: "32px",
-                  backgroundColor: darkMode ? "#333" : "#fff",
-                  color: darkMode ? "#fff" : "#333",
-                }}
-                notFoundContent={
-                  stocksLoading ? <Spin size="small" /> : "无匹配结果"
-                }
-              />
-            </div>
-            <div className="form-group">
-              <InputNumber
-                value={limit}
-                onChange={(value) => setLimit(value)}
-                placeholder="数据条数"
-                changeOnWheel={true}
-                step={1000}
-                min={1000}
-                max={20000}
-                style={{
-                  width: "80px",
-                  backgroundColor: darkMode ? "#333" : "#fff",
-                  color: darkMode ? "#fff" : "#333",
-                }}
-              />
-            </div>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              className="query-button"
-            >
-              查询
-            </Button>
-          </form>
+            <InputNumber
+              value={limit}
+              onChange={(value) => setLimit(value)}
+              placeholder="数据条数"
+              changeOnWheel={true}
+              step={1000}
+              min={1000}
+              max={20000}
+              size="small"
+              style={{
+                width: "80px",
+                height: "32px",
+                backgroundColor: darkMode ? "#333" : "#fff",
+                color: darkMode ? "#fff" : "#333",
+              }}
+            />
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      <Modal
+        title="搜索股票"
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+        width={600}
+        destroyOnHidden={true}
+      >
+        <div className="stock-search-modal">
+          <Input
+            ref={searchInputRef}
+            placeholder="输入股票代码/名称/拼音搜索"
+            value={searchText}
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              handleSearch(e.target.value);
+            }}
+            prefix={<SearchOutlined />}
+            allowClear
+            size="large"
+            style={{ marginBottom: 16 }}
+          />
+          {stocksLoading ? (
+            <div style={{ textAlign: "center", padding: "40px" }}>
+              <Spin />
+            </div>
+          ) : searchResults.length > 0 ? (
+            <List
+              dataSource={searchResults}
+              renderItem={(item) => (
+                <List.Item
+                  onClick={() => handleSelectStock(item.code)}
+                  style={{ cursor: "pointer" }}
+                  className="stock-list-item"
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ fontWeight: 500, fontSize: "14px" }}>
+                      {item.isFavorite && (
+                        <StarFilled
+                          style={{ color: "#fadb14", marginRight: "8px" }}
+                        />
+                      )}
+                      {item.name}
+                    </span>
+                    <span style={{ color: "#999", fontSize: "13px" }}>
+                      {item.code}
+                    </span>
+                  </div>
+                </List.Item>
+              )}
+              style={{ maxHeight: "400px", overflowY: "auto" }}
+            />
+          ) : (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "40px",
+                color: "#999",
+              }}
+            >
+              {searchText ? "无匹配结果" : "请输入关键词搜索"}
+            </div>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 };
 

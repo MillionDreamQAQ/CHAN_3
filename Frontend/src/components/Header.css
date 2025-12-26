@@ -44,7 +44,7 @@
 
 .indicator-divider {
   width: 1px;
-  height: 20px;
+  height: 28px;
   background: var(--border-color);
   opacity: 0.5;
 }
@@ -88,4 +88,100 @@
 
 .theme-toggle:hover {
   transform: rotate(20deg);
+}
+
+.stock-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* padding: 4px 12px; */
+  background: var(--card-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.stock-info:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+.search-trigger {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.stock-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 120px;
+}
+
+.stock-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.stock-code {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: Cambria, Cochin, Georgia, Times, "Times New Roman", serif;
+}
+
+.favorite-toggle {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.kline-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kline-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-color);
+  opacity: 0.5;
+}
+
+.kline-buttons .ant-btn-group {
+  display: flex;
+}
+
+.kline-buttons .ant-btn-sm {
+  padding: 0 10px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.stock-list-item {
+  transition: background 0.2s ease;
+  padding: 12px 16px !important;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.stock-list-item:hover {
+  background: rgba(24, 144, 255, 0.08);
+}
+
+.stock-search-modal .ant-input-affix-wrapper {
+  padding: 8px 12px;
+}
+
+.stock-search-modal .ant-list-item {
+  border: none;
 }
