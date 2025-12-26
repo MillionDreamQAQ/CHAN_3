@@ -1,5 +1,7 @@
 """
-使用 akshare 获取股票和指数基本信息并存储到 TimescaleDB
+获取股票、指数和 ETF 基本信息并存储到 TimescaleDB
+- 股票和指数：使用 akshare 获取
+- ETF：从 API 接口获取
 自动生成拼音字段以支持搜索功能
 """
 
@@ -11,6 +13,7 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
 import logging
+import requests
 import akshare as ak
 import pandas as pd
 from pypinyin import lazy_pinyin, Style
@@ -24,69 +27,57 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class StockIndexImporter:
-    """股票和指数基本信息导入器"""
+class StockDataImporter:
+    """股票、指数和 ETF 基本信息导入器"""
 
-    def __init__(self):
+    def __init__(self, etf_api_url="http://localhost:8080/api/etf"):
         self.db_conn = None
         self.db_cursor = None
+        self.etf_api_url = etf_api_url
 
-    def add_required_columns(self):
-        """添加必要的数据库字段（type、pinyin、pinyin_short）"""
+    def create_stocks_table_if_not_exists(self):
+        """检查并创建 stocks 表（如果不存在）"""
         with DatabaseConnection() as db:
             if not db.conn:
                 logger.error("数据库连接失败")
                 return False
 
             try:
-                # 检查字段是否已存在
+                # 检查表是否存在
                 db.cursor.execute(
                     """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = 'stocks'
-                    AND column_name IN ('type', 'pinyin', 'pinyin_short')
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_name = 'stocks'
+                    )
                 """
                 )
-                existing_columns = [row[0] for row in db.cursor.fetchall()]
+                table_exists = db.cursor.fetchone()[0]
 
-                # 添加 type 字段
-                if "type" not in existing_columns:
-                    logger.info("添加 type 字段...")
+                if not table_exists:
+                    logger.info("stocks 表不存在，正在创建...")
                     db.cursor.execute(
                         """
-                        ALTER TABLE stocks
-                        ADD COLUMN type VARCHAR(20) DEFAULT 'stock'
+                        CREATE TABLE stocks (
+                            code VARCHAR(20) PRIMARY KEY,
+                            name VARCHAR(100) NOT NULL,
+                            type VARCHAR(20) DEFAULT 'stock',
+                            pinyin VARCHAR(200),
+                            pinyin_short VARCHAR(50),
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
                     """
                     )
+                    db.conn.commit()
+                    logger.info("stocks 表创建成功")
+                else:
+                    logger.info("stocks 表已存在")
 
-                # 添加 pinyin 字段
-                if "pinyin" not in existing_columns:
-                    logger.info("添加 pinyin 字段...")
-                    db.cursor.execute(
-                        """
-                        ALTER TABLE stocks
-                        ADD COLUMN pinyin VARCHAR(200)
-                    """
-                    )
-
-                # 添加 pinyin_short 字段
-                if "pinyin_short" not in existing_columns:
-                    logger.info("添加 pinyin_short 字段...")
-                    db.cursor.execute(
-                        """
-                        ALTER TABLE stocks
-                        ADD COLUMN pinyin_short VARCHAR(50)
-                    """
-                    )
-
-                db.conn.commit()
-                logger.info("数据库字段准备完成")
                 return True
 
             except Exception as e:
                 db.conn.rollback()
-                logger.error(f"添加数据库字段失败: {e}")
+                logger.error(f"创建 stocks 表失败: {e}")
                 return False
 
     def fetch_stock_info(self):
@@ -94,7 +85,7 @@ class StockIndexImporter:
         获取并转换所有A股股票基本信息
 
         Returns:
-            DataFrame: 统一格式的股票基本信息（code, name, list_date, type）
+            DataFrame: 统一格式的股票基本信息（code, name, type）
         """
         logger.info("开始获取股票基本信息...")
 
@@ -108,9 +99,6 @@ class StockIndexImporter:
                 {
                     "code": df_sh_main["证券代码"].apply(lambda x: f"sh.{x}"),
                     "name": df_sh_main["证券简称"],
-                    "list_date": pd.to_datetime(
-                        df_sh_main["上市日期"], errors="coerce"
-                    ),
                     "type": "stock",
                 }
             )
@@ -128,7 +116,6 @@ class StockIndexImporter:
                 {
                     "code": df_sh_sci["证券代码"].apply(lambda x: f"sh.{x}"),
                     "name": df_sh_sci["证券简称"],
-                    "list_date": pd.to_datetime(df_sh_sci["上市日期"], errors="coerce"),
                     "type": "stock",
                 }
             )
@@ -146,7 +133,6 @@ class StockIndexImporter:
                 {
                     "code": df_sz["A股代码"].apply(lambda x: f"sz.{x}"),
                     "name": df_sz["A股简称"],
-                    "list_date": pd.to_datetime(df_sz["A股上市日期"], errors="coerce"),
                     "type": "stock",
                 }
             )
@@ -164,7 +150,6 @@ class StockIndexImporter:
                 {
                     "code": df_bj["证券代码"].apply(lambda x: f"bj.{x}"),
                     "name": df_bj["证券简称"],
-                    "list_date": pd.to_datetime(df_bj["上市日期"], errors="coerce"),
                     "type": "stock",
                 }
             )
@@ -193,7 +178,7 @@ class StockIndexImporter:
         获取所有指数信息（从 akshare 接口获取）
 
         Returns:
-            DataFrame: 统一格式的指数基本信息（code, name, list_date, type）
+            DataFrame: 统一格式的指数基本信息（code, name, type）
         """
         logger.info("开始获取指数基本信息...")
 
@@ -225,9 +210,6 @@ class StockIndexImporter:
                 {
                     "code": df_index["index_code"].apply(format_index_code),
                     "name": df_index["display_name"],
-                    "list_date": pd.to_datetime(
-                        df_index["publish_date"], errors="coerce"
-                    ),
                     "type": "index",
                 }
             )
@@ -241,6 +223,67 @@ class StockIndexImporter:
 
         except Exception as e:
             logger.error(f"获取指数信息失败: {e}")
+            return None
+
+    def fetch_etf_info(self):
+        """
+        从 API 获取所有 ETF 基本信息
+
+        Returns:
+            DataFrame: 统一格式的 ETF 基本信息（code, name, type）
+        """
+        logger.info("开始从 API 获取 ETF 基本信息...")
+
+        try:
+            # 发送 GET 请求
+            response = requests.get(self.etf_api_url, timeout=30)
+            response.raise_for_status()
+
+            # 解析 JSON 数据
+            data = response.json()
+
+            if data.get("code") != 0:
+                logger.error(f"API 返回错误: {data.get('message')}")
+                return None
+
+            etf_list = data.get("data", {}).get("list", [])
+            total = data.get("data", {}).get("total", 0)
+
+            logger.info(f"从 API 获取到 {len(etf_list)} 个 ETF（总计 {total} 个）")
+
+            if not etf_list:
+                logger.warning("API 返回的 ETF 列表为空")
+                return None
+
+            # 转换为 DataFrame
+            df = pd.DataFrame(etf_list)
+
+            # 格式化代码（组合 exchange 和 code）
+            df["code"] = df.apply(
+                lambda row: f"{row['exchange']}.{row['code']}", axis=1
+            )
+
+            # 转换为统一格式
+            df_clean = pd.DataFrame(
+                {
+                    "code": df["code"],
+                    "name": df["name"],
+                    "type": "etf",
+                }
+            )
+
+            # 过滤掉代码或名称为空的数据
+            df_clean = df_clean.dropna(subset=["code", "name"])
+
+            logger.info("总计获取 %d 个有效 ETF 信息", len(df_clean))
+
+            return df_clean
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"请求 API 失败: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"获取 ETF 信息失败: {e}")
             return None
 
     def generate_pinyin(self, name):
@@ -285,11 +328,10 @@ class StockIndexImporter:
         try:
             # 使用 ON CONFLICT 处理重复数据（更新已有记录）
             insert_sql = """
-                INSERT INTO stocks (code, name, list_date, type, pinyin, pinyin_short, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO stocks (code, name, type, pinyin, pinyin_short, created_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (code) DO UPDATE SET
                     name = EXCLUDED.name,
-                    list_date = EXCLUDED.list_date,
                     type = EXCLUDED.type,
                     pinyin = EXCLUDED.pinyin,
                     pinyin_short = EXCLUDED.pinyin_short
@@ -305,7 +347,6 @@ class StockIndexImporter:
                     (
                         row["code"],
                         row["name"],
-                        row["list_date"] if pd.notna(row["list_date"]) else None,
                         row.get("type", "stock"),
                         pinyin,
                         pinyin_short,
@@ -378,18 +419,18 @@ class StockIndexImporter:
 
     def import_all(self):
         """
-        导入股票和指数信息的主流程
+        导入股票、指数和 ETF 信息的主流程
 
         Returns:
             dict: 导入结果
         """
         logger.info("\n%s", "=" * 60)
-        logger.info("开始导入股票和指数基本信息")
+        logger.info("开始导入股票、指数和 ETF 基本信息")
         logger.info("%s\n", "=" * 60)
 
-        # 添加必要的数据库字段
-        if not self.add_required_columns():
-            return {"success": False, "error": "添加数据库字段失败"}
+        # 检查并创建 stocks 表
+        if not self.create_stocks_table_if_not_exists():
+            return {"success": False, "error": "创建 stocks 表失败"}
 
         # 获取股票信息
         stocks_df = self.fetch_stock_info()
@@ -397,15 +438,22 @@ class StockIndexImporter:
         # 获取指数信息
         indices_df = self.fetch_index_info()
 
-        # 合并股票和指数信息
-        if stocks_df is not None and indices_df is not None:
-            all_data_df = pd.concat([stocks_df, indices_df], ignore_index=True)
-        elif stocks_df is not None:
-            all_data_df = stocks_df
-        elif indices_df is not None:
-            all_data_df = indices_df
-        else:
-            return {"success": False, "error": "获取股票和指数信息失败"}
+        # 获取 ETF 信息
+        etf_df = self.fetch_etf_info()
+
+        # 合并所有信息
+        all_dataframes = []
+        if stocks_df is not None:
+            all_dataframes.append(stocks_df)
+        if indices_df is not None:
+            all_dataframes.append(indices_df)
+        if etf_df is not None:
+            all_dataframes.append(etf_df)
+
+        if not all_dataframes:
+            return {"success": False, "error": "获取股票、指数和 ETF 信息失败"}
+
+        all_data_df = pd.concat(all_dataframes, ignore_index=True)
 
         # 连接数据库
         with DatabaseConnection() as db:
@@ -431,6 +479,7 @@ class StockIndexImporter:
                 "updated": update_count,
                 "stocks": type_counts.get("stock", 0),
                 "indices": type_counts.get("index", 0),
+                "etf": type_counts.get("etf", 0),
             }
 
         logger.info("\n%s", "=" * 60)
@@ -440,6 +489,7 @@ class StockIndexImporter:
         logger.info("更新: %d 条", result["updated"])
         logger.info("股票: %d 只", result["stocks"])
         logger.info("指数: %d 个", result["indices"])
+        logger.info("ETF: %d 个", result["etf"])
         logger.info("%s\n", "=" * 60)
 
         return result
@@ -512,10 +562,41 @@ class StockIndexImporter:
                     pinyin_short or "",
                 )
 
+            # 显示 ETF 示例
+            db.cursor.execute(
+                """
+                SELECT code, name, type, pinyin, pinyin_short
+                FROM stocks
+                WHERE type = 'etf'
+                LIMIT 5
+            """
+            )
+
+            logger.info("\nETF 示例数据:")
+            logger.info(
+                "%-15s %-30s %-10s %-30s %-15s",
+                "代码",
+                "名称",
+                "类型",
+                "拼音",
+                "首字母",
+            )
+            logger.info("-" * 100)
+
+            for code, name, typ, pinyin, pinyin_short in db.cursor.fetchall():
+                logger.info(
+                    "%-15s %-30s %-10s %-30s %-15s",
+                    code,
+                    name,
+                    typ,
+                    pinyin or "",
+                    pinyin_short or "",
+                )
+
 
 def import_all_stocks_and_indices():
     """
-    导入所有股票和指数基本信息
+    导入所有股票、指数和 ETF 基本信息
 
     Returns:
         dict: 导入结果
@@ -525,13 +606,14 @@ def import_all_stocks_and_indices():
         >>> print(f"新增 {result['new']} 条记录")
         >>> print(f"股票: {result['stocks']} 只")
         >>> print(f"指数: {result['indices']} 个")
+        >>> print(f"ETF: {result['etf']} 个")
     """
-    importer = StockIndexImporter()
+    importer = StockDataImporter()
     return importer.import_all()
 
 
 if __name__ == "__main__":
-    # 导入股票和指数基本信息
+    # 导入股票、指数和 ETF 基本信息
     result = import_all_stocks_and_indices()
 
     if result["success"]:
@@ -540,9 +622,10 @@ if __name__ == "__main__":
         logger.info("更新: %d 条记录", result["updated"])
         logger.info("股票: %d 只", result["stocks"])
         logger.info("指数: %d 个", result["indices"])
+        logger.info("ETF: %d 个", result["etf"])
 
         # 显示示例数据
-        importer = StockIndexImporter()
+        importer = StockDataImporter()
         importer.show_sample_data()
     else:
         logger.error("\n导入失败: %s", result.get("error", "未知错误"))
