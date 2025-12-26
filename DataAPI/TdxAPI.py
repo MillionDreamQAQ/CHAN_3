@@ -211,7 +211,7 @@ class CTdxStockAPI(CCommonStockApi):
             / 1000.0,  # 成交额也除以1000
         }
 
-        return CKLine_Unit(data_dict)
+        return CKLine_Unit(data_dict, autofix=True)
 
     def _parse_time(self, time_str: str) -> CTime:
         """
