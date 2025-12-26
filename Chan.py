@@ -201,9 +201,6 @@ class CChan:
         elif self.data_src == DATA_SRC.CSV:
             from DataAPI.csvAPI import CSV_API
             _dict[DATA_SRC.CSV] = CSV_API
-        elif self.data_src == DATA_SRC.TIMESCALE:
-            from DataAPI.TimescaleAPI import CTimescaleStockAPI
-            _dict[DATA_SRC.TIMESCALE] = CTimescaleStockAPI
         elif self.data_src == DATA_SRC.TDX:
             from DataAPI.TdxAPI import CTdxStockAPI
             _dict[DATA_SRC.TDX] = CTdxStockAPI
