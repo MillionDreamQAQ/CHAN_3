@@ -167,18 +167,6 @@ const Header = ({
       message.warning("请输入有效的数据条数");
       return;
     }
-    if (code.startsWith("sh.000") || code.startsWith("sz.399")) {
-      if (
-        klineType === "1m" ||
-        klineType === "5m" ||
-        klineType === "15m" ||
-        klineType === "30m" ||
-        klineType === "60m"
-      ) {
-        message.warning("指数不支持分钟线查询");
-        return;
-      }
-    }
     setCurCode(code);
     onQuery({
       code,
@@ -348,10 +336,12 @@ const Header = ({
                 value={limit}
                 onChange={(value) => setLimit(value)}
                 placeholder="数据条数"
-                min={1}
-                max={100000}
+                changeOnWheel={true}
+                step={1000}
+                min={1000}
+                max={20000}
                 style={{
-                  width: "120px",
+                  width: "80px",
                   backgroundColor: darkMode ? "#333" : "#fff",
                   color: darkMode ? "#fff" : "#333",
                 }}
