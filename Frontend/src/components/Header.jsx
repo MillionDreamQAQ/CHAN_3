@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   AutoComplete,
-  DatePicker,
   Button,
   Select,
   Spin,
   message,
   Checkbox,
+  InputNumber,
 } from "antd";
 import {
   BulbOutlined,
@@ -15,7 +15,6 @@ import {
   StarFilled,
 } from "@ant-design/icons";
 import { getColors } from "../config/config";
-import dayjs from "dayjs";
 import axios from "axios";
 import Fuse from "fuse.js";
 import "./Header.css";
@@ -35,10 +34,7 @@ const Header = ({
   const [code, setCode] = useState("sh.000001");
   const [curCode, setCurCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
-  const [beginTime, setBeginTime] = useState(
-    new dayjs().subtract(3, "year").format("YYYY-MM-DD")
-  );
-  const [endTime, setEndTime] = useState(dayjs().format("YYYY-MM-DD"));
+  const [limit, setLimit] = useState(2000);
 
   const [searchOptions, setSearchOptions] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
@@ -96,8 +92,7 @@ const Header = ({
     onQuery({
       code,
       kline_type: klineType,
-      begin_time: beginTime,
-      end_time: endTime,
+      limit,
     });
     setCurCode(code);
   }, []);
@@ -168,12 +163,13 @@ const Header = ({
       message.warning("请输入股票代码");
       return;
     }
-    if (!beginTime) {
-      message.warning("请选择开始时间");
+    if (!limit || limit <= 0) {
+      message.warning("请输入有效的数据条数");
       return;
     }
     if (code.startsWith("sh.000") || code.startsWith("sz.399")) {
       if (
+        klineType === "1m" ||
         klineType === "5m" ||
         klineType === "15m" ||
         klineType === "30m" ||
@@ -187,8 +183,7 @@ const Header = ({
     onQuery({
       code,
       kline_type: klineType,
-      begin_time: beginTime,
-      end_time: endTime || undefined,
+      limit,
     });
   };
 
@@ -294,6 +289,7 @@ const Header = ({
                   { value: "day", label: "日线" },
                   { value: "week", label: "周线" },
                   { value: "month", label: "月线" },
+                  { value: "1m", label: "1分线" },
                   { value: "5m", label: "5分线" },
                   { value: "15m", label: "15分线" },
                   { value: "30m", label: "30分线" },
@@ -319,7 +315,7 @@ const Header = ({
                 }}
                 onBlur={() => {
                   if (!code) {
-                    setCode("sh.000001");
+                    setCode(curCode);
                   }
                   setDropdownOpen(false);
                 }}
@@ -348,24 +344,12 @@ const Header = ({
               />
             </div>
             <div className="form-group">
-              <DatePicker
-                value={beginTime ? dayjs(beginTime) : null}
-                onChange={(date, dateString) => setBeginTime(dateString)}
-                placeholder="选择开始时间"
-                format="YYYY-MM-DD"
-                style={{
-                  width: "120px",
-                  backgroundColor: darkMode ? "#333" : "#fff",
-                  color: darkMode ? "#fff" : "#333",
-                }}
-              />
-            </div>
-            <div className="form-group">
-              <DatePicker
-                value={endTime ? dayjs(endTime) : null}
-                onChange={(date, dateString) => setEndTime(dateString)}
-                placeholder="选择结束时间"
-                format="YYYY-MM-DD"
+              <InputNumber
+                value={limit}
+                onChange={(value) => setLimit(value)}
+                placeholder="数据条数"
+                min={1}
+                max={100000}
                 style={{
                   width: "120px",
                   backgroundColor: darkMode ? "#333" : "#fff",

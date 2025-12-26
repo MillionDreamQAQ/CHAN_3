@@ -62,6 +62,7 @@ class ChanService:
             "day": KL_TYPE.K_DAY,
             "week": KL_TYPE.K_WEEK,
             "month": KL_TYPE.K_MON,
+            "1m": KL_TYPE.K_1M,
             "5m": KL_TYPE.K_5M,
             "15m": KL_TYPE.K_15M,
             "30m": KL_TYPE.K_30M,
@@ -87,15 +88,15 @@ class ChanService:
             }
         )
 
-        # 创建CChan实例
         chan = CChan(
             code=request.code,
-            begin_time=request.begin_time,
-            end_time=request.end_time,
-            data_src=DATA_SRC.TIMESCALE,
+            begin_time=None,
+            end_time=None,
+            data_src=DATA_SRC.TDX,
             lv_list=[kl_type],
             config=config,
             autype=AUTYPE.QFQ,
+            limit=request.limit,
         )
 
         # 获取K线数据

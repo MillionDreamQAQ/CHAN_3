@@ -26,6 +26,7 @@ class CChan:
         lv_list=None,
         config=None,
         autype: AUTYPE = AUTYPE.QFQ,
+        limit: Optional[int] = None,
     ):
         if lv_list is None:
             lv_list = [KL_TYPE.K_DAY, KL_TYPE.K_60M]
@@ -36,6 +37,7 @@ class CChan:
         self.autype = autype
         self.data_src = data_src
         self.lv_list: List[KL_TYPE] = lv_list
+        self.limit = limit
 
         if config is None:
             config = CChanConfig()
@@ -63,6 +65,7 @@ class CChan:
         obj.data_src = self.data_src
         obj.lv_list = copy.deepcopy(self.lv_list, memo)
         obj.conf = copy.deepcopy(self.conf, memo)
+        obj.limit = self.limit
         obj.kl_misalign_cnt = self.kl_misalign_cnt
         obj.kl_inconsistent_detail = copy.deepcopy(self.kl_inconsistent_detail, memo)
         obj.g_kl_iter = copy.deepcopy(self.g_kl_iter, memo)
@@ -94,7 +97,26 @@ class CChan:
             yield klu
 
     def get_load_stock_iter(self, stockapi_cls, lv):
-        stockapi_instance = stockapi_cls(code=self.code, k_type=lv, begin_date=self.begin_time, end_date=self.end_time, autype=self.autype)
+        # 根据数据源类型决定传递的参数
+        if self.data_src == DATA_SRC.TDX:
+            # TDX数据源使用limit参数
+            stockapi_instance = stockapi_cls(
+                code=self.code,
+                k_type=lv,
+                begin_date=self.begin_time,
+                end_date=self.end_time,
+                autype=self.autype,
+                limit=self.limit if self.limit is not None else 2000
+            )
+        else:
+            # 其他数据源使用时间范围参数
+            stockapi_instance = stockapi_cls(
+                code=self.code,
+                k_type=lv,
+                begin_date=self.begin_time,
+                end_date=self.end_time,
+                autype=self.autype
+            )
         return self.load_stock_data(stockapi_instance, lv)
 
     def add_lv_iter(self, lv_idx, iter):
@@ -182,6 +204,9 @@ class CChan:
         elif self.data_src == DATA_SRC.TIMESCALE:
             from DataAPI.TimescaleAPI import CTimescaleStockAPI
             _dict[DATA_SRC.TIMESCALE] = CTimescaleStockAPI
+        elif self.data_src == DATA_SRC.TDX:
+            from DataAPI.TdxAPI import CTdxStockAPI
+            _dict[DATA_SRC.TDX] = CTdxStockAPI
         if self.data_src in _dict:
             return _dict[self.data_src]
         assert isinstance(self.data_src, str)

@@ -7,6 +7,7 @@ class DATA_SRC(Enum):
     CCXT = auto()
     CSV = auto()
     TIMESCALE = auto()
+    TDX = auto()
 
 
 class KL_TYPE(Enum):
