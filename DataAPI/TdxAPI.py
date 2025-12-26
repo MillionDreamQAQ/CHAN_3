@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CTdxStockAPI(CCommonStockApi):
     """
     基于TDX Docker API的股票数据接口
-    支持股票和指数的K线数据获取
+    支持股票、ETF和指数的K线数据获取
     """
 
     # API基础地址
@@ -57,11 +57,12 @@ class CTdxStockAPI(CCommonStockApi):
         从TDX Docker API获取数据并转换为标准格式
         """
         try:
-            # 判断是股票还是指数
+            # 判断是 ETF、指数还是股票
+            is_etf = self._is_etf_code(self.code)
             is_index = self._is_index_code(self.code)
 
             # 转换代码格式
-            api_code = self._convert_code_format(self.code, is_index)
+            api_code = self._convert_code_format(self.code, is_index, is_etf)
 
             # 获取K线类型
             kline_type = self.KLINE_TYPE_MAP.get(self.k_type)
@@ -69,6 +70,7 @@ class CTdxStockAPI(CCommonStockApi):
                 raise Exception(f"不支持的K线类型: {self.k_type}")
 
             # 选择API端点
+            # ETF 和股票使用 /api/kline-all，指数使用 /api/index/all
             endpoint = "/api/index/all" if is_index else "/api/kline-all"
 
             # 构建请求URL
@@ -110,6 +112,41 @@ class CTdxStockAPI(CCommonStockApi):
             logger.error(f"获取K线数据失败: {e}")
             raise
 
+    def _is_etf_code(self, code: str) -> bool:
+        """
+        判断是否为 ETF 代码
+
+        Args:
+            code: 代码（如 sz.159929, sh.589220）
+
+        Returns:
+            True: ETF, False: 非ETF
+        """
+        # 提取纯数字代码
+        if "." in code:
+            # 格式：sz.159929
+            market, number = code.split(".")
+        else:
+            # 可能的旧格式：sz159929（兼容处理）
+            if len(code) >= 8:
+                market = code[:2]
+                number = code[2:]
+            else:
+                return False
+
+        # 深圳 ETF：15xxxx, 16xxxx, 18xxxx
+        if market == "sz" and len(number) == 6 and number[:2] in ["15", "16", "18"]:
+            return True
+        # 上海 ETF：51xxxx, 52xxxx, 56xxxx, 58xxxx
+        if (
+            market == "sh"
+            and len(number) == 6
+            and number[:2] in ["51", "52", "56", "58"]
+        ):
+            return True
+
+        return False
+
     def _is_index_code(self, code: str) -> bool:
         """
         判断是否为指数代码
@@ -122,20 +159,25 @@ class CTdxStockAPI(CCommonStockApi):
         """
         return code.startswith("sh.000") or code.startswith("sz.399")
 
-    def _convert_code_format(self, code: str, is_index: bool) -> str:
+    def _convert_code_format(
+        self, code: str, is_index: bool, is_etf: bool = False
+    ) -> str:
         """
         转换代码格式为TDX API所需格式
 
         Args:
-            code: 原始代码（如 sh.600519, sh.000001）
+            code: 原始代码（如 sh.600519, sh.000001, sz.159929）
             is_index: 是否为指数
+            is_etf: 是否为ETF
 
         Returns:
             转换后的代码
             - 股票: 纯数字（如 600519）
+            - ETF: 字母+数字（如 sh589220, sz159929）
             - 指数: 字母+数字（如 sh000001）
         """
-        if is_index:
+        if is_etf or is_index:
+            # ETF: sh.589220 → sh589220, sz.159929 → sz159929
             # 指数: sh.000001 → sh000001
             return code.replace(".", "")
         else:
