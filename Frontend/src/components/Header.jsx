@@ -123,6 +123,13 @@ const Header = ({
     }
   }, [modalOpen]);
 
+  // 监听 favorites 变化，弹窗打开时刷新搜索结果
+  useEffect(() => {
+    if (modalOpen) {
+      handleSearch(searchText);
+    }
+  }, [favorites]);
+
   useEffect(() => {
     if (code) {
       onQuery({
@@ -367,7 +374,7 @@ const Header = ({
               setSearchText(e.target.value);
               handleSearch(e.target.value);
             }}
-            prefix={<SearchOutlined />}
+            prefix={<SearchOutlined style={{ marginRight: "6px" }} />}
             allowClear
             size="large"
             style={{ marginBottom: 16 }}
@@ -391,12 +398,47 @@ const Header = ({
                       justifyContent: "space-between",
                       width: "100%",
                       alignItems: "center",
+                      gap: "12px",
                     }}
                   >
-                    <span style={{ fontWeight: 500, fontSize: "14px" }}>
-                      {item.isFavorite && (
+                    <span
+                      style={{
+                        fontWeight: 500,
+                        fontSize: "14px",
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      {item.isFavorite ? (
                         <StarFilled
-                          style={{ color: "#fadb14", marginRight: "8px" }}
+                          style={{
+                            color: "#fadb14",
+                            marginRight: "8px",
+                            cursor: "pointer",
+                            fontSize: "16px",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleFavorite(item.code);
+                          }}
+                          title="取消收藏"
+                          className="favorite-star-icon"
+                        />
+                      ) : (
+                        <StarOutlined
+                          style={{
+                            color: "#d9d9d9",
+                            marginRight: "8px",
+                            cursor: "pointer",
+                            fontSize: "16px",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleFavorite(item.code);
+                          }}
+                          title="添加收藏"
+                          className="favorite-star-icon unfavorite"
                         />
                       )}
                       {item.name}

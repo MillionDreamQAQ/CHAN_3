@@ -185,3 +185,19 @@
 .stock-search-modal .ant-list-item {
   border: none;
 }
+
+.favorite-star-icon {
+  transition: all 0.2s ease;
+}
+
+.favorite-star-icon:hover {
+  transform: scale(1.2);
+}
+
+.favorite-star-icon:not(.unfavorite):hover {
+  filter: brightness(1.2);
+}
+
+.favorite-star-icon.unfavorite:hover {
+  color: #fadb14 !important;
+}
