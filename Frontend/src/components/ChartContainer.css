@@ -49,8 +49,12 @@ body.dark-mode .loading-indicator {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-indicator p {
@@ -116,7 +120,7 @@ body.dark-mode .stock-title {
   display: flex;
   flex-direction: row;
   gap: 24px;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
   transition: background 0.3s ease;
 }
 
@@ -136,7 +140,7 @@ body.dark-mode .kline-info-panel {
   font-size: 44px;
   font-weight: bold;
   line-height: 1;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
 }
 
 .kline-info-change-row {
@@ -148,7 +152,7 @@ body.dark-mode .kline-info-panel {
 
 .kline-info-change-value {
   font-weight: bold;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
 }
 
 .kline-info-right {
@@ -175,7 +179,7 @@ body.dark-mode .kline-info-panel {
 .kline-info-value {
   color: var(--text-primary);
   font-weight: bold;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
   transition: color 0.3s ease;
 }
 

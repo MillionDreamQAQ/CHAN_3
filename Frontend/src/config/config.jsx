@@ -177,7 +177,7 @@ export const getChartConfig = (
     horzLines: { color: darkMode ? "#2a2a2a" : "#f0f0f0" },
   },
   crosshair: {
-    mode: 1,
+    mode: 0,
   },
   rightPriceScale: {
     borderColor: darkMode ? "#404040" : "#d1d4dc",
