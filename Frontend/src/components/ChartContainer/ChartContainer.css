@@ -19,6 +19,7 @@
   min-height: 150px;
 }
 
+/* Loading */
 .loading-indicator {
   position: absolute;
   top: 0;
@@ -63,6 +64,7 @@ body.dark-mode .loading-indicator {
   margin: 0;
 }
 
+/* Stock Title */
 .stock-title {
   position: absolute;
   top: 10px;
@@ -106,6 +108,7 @@ body.dark-mode .stock-title {
   color: var(--text-secondary);
 }
 
+/* Kline Info Panel */
 .kline-info-panel {
   position: absolute;
   top: 20px;
@@ -199,6 +202,22 @@ body.dark-mode .kline-info-panel {
   color: #1dc36a;
 }
 
+/* Chart Tooltip */
+.chart-tooltip {
+  position: absolute;
+  display: none;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Measure Info Panel */
 .measure-info-panel {
   position: absolute;
   top: 10px;
@@ -315,6 +334,7 @@ body.dark-mode .measure-divider {
   min-width: 32px;
 }
 
+/* Measure Rect */
 .measure-rect {
   position: absolute;
   pointer-events: none;
@@ -333,7 +353,7 @@ body.dark-mode .measure-divider {
   border-color: rgba(29, 195, 106, 0.6);
 }
 
-/* 测量提示 */
+/* Measure Hint */
 .measure-hint {
   position: absolute;
   bottom: 80px;
