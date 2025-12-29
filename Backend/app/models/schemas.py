@@ -18,6 +18,7 @@ class KLineData(BaseModel):
     low: float
     close: float
     volume: float
+    amount: float
 
 
 class BiPoint(BaseModel):

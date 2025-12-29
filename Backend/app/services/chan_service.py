@@ -142,7 +142,9 @@ class ChanService:
                 volume = 0
                 if hasattr(klu, "trade_info") and klu.trade_info:
                     volume = klu.trade_info.metric.get("volume", 0) or 0
-
+                amount = 0
+                if hasattr(klu, "trade_info") and klu.trade_info:
+                    amount = klu.trade_info.metric.get("turnover", 0) or 0
                 klines.append(
                     KLineData(
                         time=str(klu.time),
@@ -151,6 +153,7 @@ class ChanService:
                         low=klu.low,
                         close=klu.close,
                         volume=volume,
+                        amount=amount,
                     )
                 )
 

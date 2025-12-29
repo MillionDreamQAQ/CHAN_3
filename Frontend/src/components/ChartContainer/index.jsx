@@ -147,6 +147,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       low: k.low,
       close: k.close,
       volume: k.volume || 0,
+      amount: k.amount || 0,
     }));
   }, [data?.klines]);
 
@@ -282,6 +283,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         low: lastKline.low,
         close: lastKline.close,
         volume: lastKline.volume || 0,
+        amount: lastKline.amount || 0,
         prevClose: prevKline?.close || lastKline.open,
       });
     }
