@@ -31,6 +31,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     endPoint: null,
     measureInfo: null,
   });
+  const [measureRect, setMeasureRect] = useState(null);
 
   const shiftKeyRef = useRef(false);
 
@@ -61,7 +62,6 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     histogram: null,
     markers: null,
     ma: {},
-    measureLine: null,
   });
 
   const dataRefs = useRef({
@@ -372,6 +372,14 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       return;
 
     setLoading(true);
+
+    setMeasureRect(null);
+    setMeasureState({
+      isActive: false,
+      startPoint: null,
+      endPoint: null,
+      measureInfo: null,
+    });
 
     dataRefs.current.kline = klineData;
     seriesRefs.current.candlestick.setData(klineData);
@@ -712,11 +720,32 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     }
   }, []);
 
-  const clearMeasureLine = useCallback(() => {
-    if (seriesRefs.current.measureLine && chartRefs.current.main) {
-      chartRefs.current.main.removeSeries(seriesRefs.current.measureLine);
-      seriesRefs.current.measureLine = null;
+  const updateMeasureRect = useCallback((startPoint, endPoint, isUp) => {
+    if (!chartRefs.current.main || !seriesRefs.current.candlestick) return;
+
+    const timeScale = chartRefs.current.main.timeScale();
+    const x1 = timeScale.timeToCoordinate(startPoint.time);
+    const x2 = timeScale.timeToCoordinate(endPoint.time);
+    const y1 = seriesRefs.current.candlestick.priceToCoordinate(
+      startPoint.price
+    );
+    const y2 = seriesRefs.current.candlestick.priceToCoordinate(endPoint.price);
+
+    if (x1 === null || x2 === null || y1 === null || y2 === null) {
+      setMeasureRect(null);
+      return;
     }
+
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    setMeasureRect({ left, top, width, height, isUp });
+  }, []);
+
+  const clearMeasureRect = useCallback(() => {
+    setMeasureRect(null);
   }, []);
 
   const calculateMeasureInfo = useCallback((startPoint, endPoint) => {
@@ -736,12 +765,16 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     const timeDiffMinutes = Math.floor(timeDiffSeconds / 60);
 
     let timeSpan = "";
+    let timeSpanUnit = "";
     if (timeDiffDays > 0) {
-      timeSpan = `${timeDiffDays}天`;
+      timeSpan = `${timeDiffDays}`;
+      timeSpanUnit = "天";
     } else if (timeDiffHours > 0) {
-      timeSpan = `${timeDiffHours}小时`;
+      timeSpan = `${timeDiffHours}`;
+      timeSpanUnit = "小时";
     } else {
-      timeSpan = `${timeDiffMinutes}分钟`;
+      timeSpan = `${timeDiffMinutes}`;
+      timeSpanUnit = "分钟";
     }
 
     const formatTime = (timestamp) => {
@@ -763,44 +796,27 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       priceChangePercent,
       klineCount,
       timeSpan,
+      timeSpanUnit,
       isUp,
     };
   }, []);
 
-  const drawMeasureLine = useCallback(
+  const drawMeasureRect = useCallback(
     (startPoint, endPoint, measureInfo) => {
-      if (!chartRefs.current.main) return;
-
-      clearMeasureLine();
-
-      const lineColor = measureInfo.isUp ? COLORS.upColor : COLORS.downColor;
-
-      const mainLine = chartRefs.current.main.addSeries(LineSeries, {
-        color: lineColor,
-        lineWidth: 2,
-        lineStyle: 2,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      mainLine.setData([
-        { time: startPoint.time, value: startPoint.price },
-        { time: endPoint.time, value: endPoint.price },
-      ]);
-      seriesRefs.current.measureLine = mainLine;
+      updateMeasureRect(startPoint, endPoint, measureInfo.isUp);
     },
-    [COLORS, clearMeasureLine]
+    [updateMeasureRect]
   );
 
   const handleClearMeasure = useCallback(() => {
-    clearMeasureLine();
+    clearMeasureRect();
     setMeasureState({
       isActive: false,
       startPoint: null,
       endPoint: null,
       measureInfo: null,
     });
-  }, [clearMeasureLine]);
+  }, [clearMeasureRect]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -854,7 +870,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
 
       setMeasureState((prev) => {
         if (!prev.startPoint) {
-          clearMeasureLine();
+          clearMeasureRect();
           return {
             isActive: true,
             startPoint: clickedPoint,
@@ -866,7 +882,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
             prev.startPoint,
             clickedPoint
           );
-          drawMeasureLine(prev.startPoint, clickedPoint, measureInfo);
+          drawMeasureRect(prev.startPoint, clickedPoint, measureInfo);
           return {
             isActive: false,
             startPoint: prev.startPoint,
@@ -884,7 +900,37 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         chartRefs.current.main.unsubscribeClick(handleChartClick);
       }
     };
-  }, [calculateMeasureInfo, drawMeasureLine, clearMeasureLine]);
+  }, [calculateMeasureInfo, drawMeasureRect, clearMeasureRect]);
+
+  useEffect(() => {
+    if (!chartRefs.current.main) return;
+    if (!measureState.startPoint || !measureState.endPoint) return;
+
+    const updateRect = () => {
+      updateMeasureRect(
+        measureState.startPoint,
+        measureState.endPoint,
+        measureState.measureInfo?.isUp ?? true
+      );
+    };
+
+    chartRefs.current.main
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(updateRect);
+
+    return () => {
+      if (chartRefs.current.main) {
+        chartRefs.current.main
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(updateRect);
+      }
+    };
+  }, [
+    measureState.startPoint,
+    measureState.endPoint,
+    measureState.measureInfo,
+    updateMeasureRect,
+  ]);
 
   useEffect(() => {
     if (!chartRefs.current.main || !chartRefs.current.macd) return;
@@ -1029,6 +1075,17 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
           }}
         />
+        {measureRect && (
+          <div
+            className={`measure-rect ${measureRect.isUp ? "up" : "down"}`}
+            style={{
+              left: measureRect.left,
+              top: measureRect.top,
+              width: measureRect.width,
+              height: measureRect.height,
+            }}
+          />
+        )}
         {measureState.startPoint && !measureState.endPoint && (
           <div className="measure-hint">按住 Shift 点击第二个点完成测量</div>
         )}
@@ -1078,7 +1135,8 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
               <div className="measure-row">
                 <span className="measure-label">时间跨度</span>
                 <span className="measure-value">
-                  {measureState.measureInfo.timeSpan}
+                  {measureState.measureInfo.timeSpan}{" "}
+                  {measureState.measureInfo.timeSpanUnit}
                 </span>
               </div>
               <div className="measure-divider"></div>

@@ -222,7 +222,7 @@ body.dark-mode .measure-info-panel {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 6px 14px;
   background: rgba(0, 0, 0, 0.03);
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
@@ -234,7 +234,7 @@ body.dark-mode .measure-info-header {
 
 .measure-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: bold;
   color: var(--text-primary);
 }
 
@@ -279,12 +279,12 @@ body.dark-mode .measure-close-btn:hover {
 .measure-label {
   font-size: 12px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: bold;
 }
 
 .measure-value {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: bold;
   color: var(--text-primary);
 }
 
@@ -297,7 +297,7 @@ body.dark-mode .measure-close-btn:hover {
 }
 
 .measure-value-small {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -313,6 +313,24 @@ body.dark-mode .measure-divider {
 
 .time-row .measure-label {
   min-width: 32px;
+}
+
+.measure-rect {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  border: 2px solid;
+  box-sizing: border-box;
+}
+
+.measure-rect.up {
+  background: rgba(235, 53, 50, 0.15);
+  border-color: rgba(235, 53, 50, 0.6);
+}
+
+.measure-rect.down {
+  background: rgba(29, 195, 106, 0.15);
+  border-color: rgba(29, 195, 106, 0.6);
 }
 
 /* 测量提示 */
