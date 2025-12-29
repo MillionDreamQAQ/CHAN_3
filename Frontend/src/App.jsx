@@ -4,6 +4,7 @@ import ChartContainer from "./components/ChartContainer";
 import { chanApi } from "./services/api";
 import { showMessage } from "./utils/utils";
 import { ConfigProvider, message, theme } from "antd";
+import { getDefaultIndicators } from "./config/config";
 
 import "./App.css";
 
@@ -18,18 +19,7 @@ function App() {
 
   const [indicators, setIndicators] = useState(() => {
     const saved = localStorage.getItem("indicators");
-    return saved
-      ? JSON.parse(saved)
-      : {
-          ma5: true,
-          ma10: true,
-          ma20: true,
-          ma30: true,
-          bi: true,
-          seg: true,
-          zs: true,
-          bsPoints: true,
-        };
+    return saved ? JSON.parse(saved) : getDefaultIndicators();
   });
 
   const [favorites, setFavorites] = useState(() => {
@@ -64,6 +54,23 @@ function App() {
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
   };
+
+  const toggleMAPeriod = useCallback((period) => {
+    setIndicators((prev) => ({
+      ...prev,
+      maPeriods: {
+        ...prev.maPeriods,
+        [period]: !prev.maPeriods[period],
+      },
+    }));
+  }, []);
+
+  const setMAType = useCallback((type) => {
+    setIndicators((prev) => ({
+      ...prev,
+      maType: type,
+    }));
+  }, []);
 
   const toggleIndicator = useCallback((key) => {
     setIndicators((prev) => ({
@@ -110,9 +117,11 @@ function App() {
           loading={loading}
           darkMode={darkMode}
           indicators={indicators}
-          onToggleIndicator={toggleIndicator}
-          onToggleDarkMode={toggleDarkMode}
           favorites={favorites}
+          onSetMAType={setMAType}
+          onToggleIndicator={toggleIndicator}
+          onToggleMAPeriod={toggleMAPeriod}
+          onToggleDarkMode={toggleDarkMode}
           onToggleFavorite={toggleFavorite}
         />
         <div className="main-content">

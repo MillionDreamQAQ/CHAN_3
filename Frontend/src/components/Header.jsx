@@ -8,6 +8,7 @@ import {
   Input,
   List,
   Space,
+  Segmented,
 } from "antd";
 import {
   BulbOutlined,
@@ -17,7 +18,12 @@ import {
   SearchOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
-import { getColors } from "../config/config";
+import {
+  getColors,
+  MA_COLORS,
+  MOVING_AVERAGE_PERIODS,
+  MA_TYPES,
+} from "../config/config";
 import axios from "axios";
 import Fuse from "fuse.js";
 import "./Header.css";
@@ -25,13 +31,23 @@ import "./Header.css";
 const Header = ({
   onQuery,
   darkMode,
-  onToggleDarkMode,
   indicators,
-  onToggleIndicator,
   favorites,
+  onSetMAType,
+  onToggleIndicator,
+  onToggleMAPeriod,
+  onToggleDarkMode,
   onToggleFavorite,
 }) => {
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
+  const maColors = useMemo(
+    () =>
+      MOVING_AVERAGE_PERIODS.reduce((acc, period) => {
+        acc[period] = COLORS[period] || MA_COLORS[period];
+        return acc;
+      }, {}),
+    [COLORS]
+  );
 
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
@@ -211,30 +227,24 @@ const Header = ({
             <div className="indicator-divider"></div>
             <div className="indicators-control">
               <div className="indicator-group">
-                <Checkbox
-                  checked={indicators.ma5}
-                  onChange={() => onToggleIndicator("ma5")}
-                >
-                  <span style={{ color: COLORS.ma5 }}>MA5</span>
-                </Checkbox>
-                <Checkbox
-                  checked={indicators.ma10}
-                  onChange={() => onToggleIndicator("ma10")}
-                >
-                  <span style={{ color: COLORS.ma10 }}>MA10</span>
-                </Checkbox>
-                <Checkbox
-                  checked={indicators.ma20}
-                  onChange={() => onToggleIndicator("ma20")}
-                >
-                  <span style={{ color: COLORS.ma20 }}>MA20</span>
-                </Checkbox>
-                <Checkbox
-                  checked={indicators.ma30}
-                  onChange={() => onToggleIndicator("ma30")}
-                >
-                  <span style={{ color: COLORS.ma30 }}>MA30</span>
-                </Checkbox>
+                <Segmented
+                  size="medium"
+                  value={indicators.maType}
+                  onChange={onSetMAType}
+                  options={[
+                    { label: "MA", value: MA_TYPES.MA },
+                    { label: "EMA", value: MA_TYPES.EMA },
+                  ]}
+                />
+                {MOVING_AVERAGE_PERIODS.map((period) => (
+                  <Checkbox
+                    key={period}
+                    checked={indicators.maPeriods?.[period]}
+                    onChange={() => onToggleMAPeriod(period)}
+                  >
+                    <span style={{ color: maColors[period] }}>{period}</span>
+                  </Checkbox>
+                ))}
               </div>
               <div className="indicator-divider"></div>
               <div className="indicator-group">

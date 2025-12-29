@@ -8,11 +8,17 @@ import "./ChartContainer.css";
 import {
   getBsPointData,
   calculateMACD,
-  calculateMA,
+  calculateMovingAverage,
   convertToUnixTimestamp,
   MACD_CONFIG,
 } from "../../utils/utils";
-import { getColors, getLineSeriesConfigs } from "../../config/config";
+import {
+  getColors,
+  getLineSeriesConfigs,
+  MOVING_AVERAGE_PERIODS,
+  generateMASeriesConfigs,
+  MA_COLORS,
+} from "../../config/config";
 
 import { useMeasure, useChartSync, useChartInit } from "./hooks";
 import { KlineInfoPanel, MeasureInfoPanel, ChartTooltip } from "./components";
@@ -24,6 +30,10 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
   const LINE_SERIES_CONFIGS = useMemo(
     () => getLineSeriesConfigs(darkMode),
+    [darkMode]
+  );
+  const MA_SERIES_CONFIGS = useMemo(
+    () => generateMASeriesConfigs(MOVING_AVERAGE_PERIODS, MA_COLORS, darkMode),
     [darkMode]
   );
 
@@ -195,11 +205,10 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     });
 
     // 更新 MA 颜色
-    const maKeys = ["ma5", "ma10", "ma20", "ma30"];
-    maKeys.forEach((key) => {
-      if (seriesRefs.current.ma[key]) {
-        seriesRefs.current.ma[key].applyOptions({
-          color: LINE_SERIES_CONFIGS[key].color,
+    MOVING_AVERAGE_PERIODS.forEach((period) => {
+      if (seriesRefs.current.ma[period]) {
+        seriesRefs.current.ma[period].applyOptions({
+          color: MA_SERIES_CONFIGS[period].color,
         });
       }
     });
@@ -232,7 +241,13 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
         seriesRefs.current.markers._private__attach();
       }
     }
-  }, [darkMode, COLORS, LINE_SERIES_CONFIGS, indicators.bsPoints]);
+  }, [
+    darkMode,
+    COLORS,
+    LINE_SERIES_CONFIGS,
+    MA_SERIES_CONFIGS,
+    indicators.bsPoints,
+  ]);
 
   // 数据更新
   useEffect(() => {
@@ -353,22 +368,16 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
 
     // 添加均线
     if (data.klines && data.klines.length > 0) {
-      const maPeriods = [
-        { key: "ma5", period: 5, config: LINE_SERIES_CONFIGS.ma5 },
-        { key: "ma10", period: 10, config: LINE_SERIES_CONFIGS.ma10 },
-        { key: "ma20", period: 20, config: LINE_SERIES_CONFIGS.ma20 },
-        { key: "ma30", period: 30, config: LINE_SERIES_CONFIGS.ma30 },
-      ];
-
-      maPeriods.forEach(({ key, period, config }) => {
-        const maData = calculateMA(data.klines, period);
+      const maType = indicators.maType || "ma";
+      MOVING_AVERAGE_PERIODS.forEach((period) => {
+        const maData = calculateMovingAverage(data.klines, period, maType);
         if (maData.length > 0) {
           const maSeries = chartRefs.current.main.addSeries(LineSeries, {
-            ...config,
-            visible: indicators[key],
+            ...MA_SERIES_CONFIGS[period],
+            visible: indicators.maPeriods?.[period] ?? true,
           });
           maSeries.setData(maData);
-          seriesRefs.current.ma[key] = maSeries;
+          seriesRefs.current.ma[period] = maSeries;
         }
       });
     }
@@ -502,15 +511,35 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     }
   }, [indicators.bsPoints]);
 
-  // MA 指标可见性 - 合并处理
+  // MA 指标可见性
   useEffect(() => {
-    const maKeys = ["ma5", "ma10", "ma20", "ma30"];
-    maKeys.forEach((key) => {
-      if (seriesRefs.current.ma[key]) {
-        seriesRefs.current.ma[key].applyOptions({ visible: indicators[key] });
+    MOVING_AVERAGE_PERIODS.forEach((period) => {
+      if (seriesRefs.current.ma[period]) {
+        seriesRefs.current.ma[period].applyOptions({
+          visible: indicators.maPeriods?.[period] ?? true,
+        });
       }
     });
-  }, [indicators.ma5, indicators.ma10, indicators.ma20, indicators.ma30]);
+  }, [indicators.maPeriods]);
+
+  // MA 类型切换时重新计算
+  useEffect(() => {
+    if (
+      !data?.klines ||
+      !chartRefs.current.main ||
+      Object.keys(seriesRefs.current.ma).length === 0
+    ) {
+      return;
+    }
+
+    const maType = indicators.maType || "ma";
+    MOVING_AVERAGE_PERIODS.forEach((period) => {
+      const maData = calculateMovingAverage(data.klines, period, maType);
+      if (seriesRefs.current.ma[period] && maData.length > 0) {
+        seriesRefs.current.ma[period].setData(maData);
+      }
+    });
+  }, [indicators.maType, data?.klines]);
 
   return (
     <div className="chart-container">

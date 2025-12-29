@@ -9,67 +9,84 @@ const BASE_COLORS = {
   difLine: "#2962FF",
   deaLine: "#FF6D00",
   zeroLine: "#787B86",
-  ma5: "#EB2E00",
-  ma10: "#EABC01",
-  ma20: "#14EB00",
-  ma30: "#017EEB",
+};
+
+export const MA_TYPES = {
+  MA: "ma",
+  EMA: "ema",
+};
+
+export const MOVING_AVERAGE_PERIODS = [5, 10, 20, 30];
+
+export const MA_COLORS = {
+  5: "#EB2E00",
+  10: "#EABC01",
+  20: "#14EB00",
+  30: "#017EEB",
+};
+
+export const INDICATOR_CATEGORIES = {
+  MOVING_AVERAGE: "movingAverage",
+  CHAN: "chan",
+};
+
+export const getDefaultIndicators = () => ({
+  maType: MA_TYPES.MA,
+  maPeriods: {
+    5: true,
+    10: true,
+    20: true,
+    30: true,
+  },
+  bi: true,
+  seg: true,
+  zs: true,
+  bsPoints: true,
+});
+
+export const generateMASeriesConfigs = (
+  periods,
+  colors,
+  isDarkMode = false
+) => {
+  const configs = {};
+  periods.forEach((period) => {
+    const baseColor = colors[period];
+    const color = isDarkMode
+      ? generate(baseColor, { theme: "dark", backgroundColor: "#1a1a1a" })[5]
+      : baseColor;
+    configs[period] = {
+      color,
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    };
+  });
+  return configs;
 };
 
 export const getColors = (isDarkMode = false) => {
   if (!isDarkMode) {
-    return BASE_COLORS;
+    return { ...BASE_COLORS, ...MA_COLORS };
   }
 
-  return {
-    upColor: generate(BASE_COLORS.upColor, {
+  const darkColors = {};
+  Object.entries(BASE_COLORS).forEach(([key, color]) => {
+    darkColors[key] = generate(color, {
       theme: "dark",
       backgroundColor: "#1a1a1a",
-    })[5],
-    downColor: generate(BASE_COLORS.downColor, {
+    })[5];
+  });
+
+  // 均线颜色
+  Object.entries(MA_COLORS).forEach(([period, color]) => {
+    darkColors[period] = generate(color, {
       theme: "dark",
       backgroundColor: "#1a1a1a",
-    })[5],
-    biLine: generate(BASE_COLORS.biLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    segLine: generate(BASE_COLORS.segLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    zsLine: generate(BASE_COLORS.zsLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    difLine: generate(BASE_COLORS.difLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    deaLine: generate(BASE_COLORS.deaLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    zeroLine: generate(BASE_COLORS.zeroLine, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    ma5: generate(BASE_COLORS.ma5, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    ma10: generate(BASE_COLORS.ma10, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    ma20: generate(BASE_COLORS.ma20, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-    ma30: generate(BASE_COLORS.ma30, {
-      theme: "dark",
-      backgroundColor: "#1a1a1a",
-    })[5],
-  };
+    })[5];
+  });
+
+  return darkColors;
 };
 
 export const COLORS = BASE_COLORS;
@@ -115,30 +132,6 @@ export const getLineSeriesConfigs = (isDarkMode = false) => {
       color: colors.zeroLine,
       lineWidth: 1,
       lineStyle: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    },
-    ma5: {
-      color: colors.ma5,
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    },
-    ma10: {
-      color: colors.ma10,
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    },
-    ma20: {
-      color: colors.ma20,
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    },
-    ma30: {
-      color: colors.ma30,
-      lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
     },
