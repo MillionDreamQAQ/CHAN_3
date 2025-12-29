@@ -25,6 +25,14 @@ import {
 const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   const [loading, setLoading] = useState(true);
   const [klineInfo, setKlineInfo] = useState(null);
+  const [measureState, setMeasureState] = useState({
+    isActive: false,
+    startPoint: null,
+    endPoint: null,
+    measureInfo: null,
+  });
+
+  const shiftKeyRef = useRef(false);
 
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
   const LINE_SERIES_CONFIGS = useMemo(
@@ -53,6 +61,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     histogram: null,
     markers: null,
     ma: {},
+    measureLine: null,
   });
 
   const dataRefs = useRef({
@@ -703,6 +712,180 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
     }
   }, []);
 
+  const clearMeasureLine = useCallback(() => {
+    if (seriesRefs.current.measureLine && chartRefs.current.main) {
+      chartRefs.current.main.removeSeries(seriesRefs.current.measureLine);
+      seriesRefs.current.measureLine = null;
+    }
+  }, []);
+
+  const calculateMeasureInfo = useCallback((startPoint, endPoint) => {
+    const priceDiff = endPoint.price - startPoint.price;
+    const priceChangePercent = (priceDiff / startPoint.price) * 100;
+    const isUp = priceDiff >= 0;
+
+    const startIdx = startPoint.klineIndex;
+    const endIdx = endPoint.klineIndex;
+    const klineCount = Math.abs(endIdx - startIdx) + 1;
+
+    const startTime = startPoint.time;
+    const endTime = endPoint.time;
+    const timeDiffSeconds = Math.abs(endTime - startTime);
+    const timeDiffDays = Math.floor(timeDiffSeconds / (24 * 60 * 60));
+    const timeDiffHours = Math.floor(timeDiffSeconds / (60 * 60));
+    const timeDiffMinutes = Math.floor(timeDiffSeconds / 60);
+
+    let timeSpan = "";
+    if (timeDiffDays > 0) {
+      timeSpan = `${timeDiffDays}天`;
+    } else if (timeDiffHours > 0) {
+      timeSpan = `${timeDiffHours}小时`;
+    } else {
+      timeSpan = `${timeDiffMinutes}分钟`;
+    }
+
+    const formatTime = (timestamp) => {
+      const date = new Date(timestamp * 1000);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours() - 8).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    };
+
+    return {
+      startTime: formatTime(startTime),
+      endTime: formatTime(endTime),
+      startPrice: startPoint.price,
+      endPrice: endPoint.price,
+      priceDiff,
+      priceChangePercent,
+      klineCount,
+      timeSpan,
+      isUp,
+    };
+  }, []);
+
+  const drawMeasureLine = useCallback(
+    (startPoint, endPoint, measureInfo) => {
+      if (!chartRefs.current.main) return;
+
+      clearMeasureLine();
+
+      const lineColor = measureInfo.isUp ? COLORS.upColor : COLORS.downColor;
+
+      const mainLine = chartRefs.current.main.addSeries(LineSeries, {
+        color: lineColor,
+        lineWidth: 2,
+        lineStyle: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      mainLine.setData([
+        { time: startPoint.time, value: startPoint.price },
+        { time: endPoint.time, value: endPoint.price },
+      ]);
+      seriesRefs.current.measureLine = mainLine;
+    },
+    [COLORS, clearMeasureLine]
+  );
+
+  const handleClearMeasure = useCallback(() => {
+    clearMeasureLine();
+    setMeasureState({
+      isActive: false,
+      startPoint: null,
+      endPoint: null,
+      measureInfo: null,
+    });
+  }, [clearMeasureLine]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Shift") {
+        shiftKeyRef.current = true;
+        if (containerRefs.current.main) {
+          containerRefs.current.main.style.cursor = "crosshair";
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === "Shift") {
+        shiftKeyRef.current = false;
+        if (containerRefs.current.main) {
+          containerRefs.current.main.style.cursor = "default";
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!chartRefs.current.main || !seriesRefs.current.candlestick) return;
+
+    const handleChartClick = (param) => {
+      if (!shiftKeyRef.current) return;
+      if (!param.time || !param.point) return;
+
+      const price = seriesRefs.current.candlestick.coordinateToPrice(
+        param.point.y
+      );
+      if (price === null) return;
+
+      const klineIndex = dataRefs.current.kline.findIndex(
+        (k) => k.time === param.time
+      );
+
+      const clickedPoint = {
+        time: param.time,
+        price: price,
+        klineIndex: klineIndex >= 0 ? klineIndex : 0,
+      };
+
+      setMeasureState((prev) => {
+        if (!prev.startPoint) {
+          clearMeasureLine();
+          return {
+            isActive: true,
+            startPoint: clickedPoint,
+            endPoint: null,
+            measureInfo: null,
+          };
+        } else {
+          const measureInfo = calculateMeasureInfo(
+            prev.startPoint,
+            clickedPoint
+          );
+          drawMeasureLine(prev.startPoint, clickedPoint, measureInfo);
+          return {
+            isActive: false,
+            startPoint: prev.startPoint,
+            endPoint: clickedPoint,
+            measureInfo: measureInfo,
+          };
+        }
+      });
+    };
+
+    chartRefs.current.main.subscribeClick(handleChartClick);
+
+    return () => {
+      if (chartRefs.current.main) {
+        chartRefs.current.main.unsubscribeClick(handleChartClick);
+      }
+    };
+  }, [calculateMeasureInfo, drawMeasureLine, clearMeasureLine]);
+
   useEffect(() => {
     if (!chartRefs.current.main || !chartRefs.current.macd) return;
 
@@ -846,6 +1029,80 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
           }}
         />
+        {measureState.startPoint && !measureState.endPoint && (
+          <div className="measure-hint">按住 Shift 点击第二个点完成测量</div>
+        )}
+        {measureState.measureInfo && (
+          <div className="measure-info-panel">
+            <div className="measure-info-header">
+              <span className="measure-title">区间测量</span>
+              <button
+                className="measure-close-btn"
+                onClick={handleClearMeasure}
+                title="清除测量"
+              >
+                ×
+              </button>
+            </div>
+            <div className="measure-info-body">
+              <div className="measure-row">
+                <span className="measure-label">价格差</span>
+                <span
+                  className={`measure-value ${
+                    measureState.measureInfo.isUp ? "up" : "down"
+                  }`}
+                >
+                  {measureState.measureInfo.isUp ? "+" : ""}
+                  {measureState.measureInfo.priceDiff.toFixed(
+                    FORMAT_CONFIG.priceDecimal
+                  )}
+                </span>
+              </div>
+              <div className="measure-row">
+                <span className="measure-label">涨跌幅</span>
+                <span
+                  className={`measure-value ${
+                    measureState.measureInfo.isUp ? "up" : "down"
+                  }`}
+                >
+                  {measureState.measureInfo.isUp ? "+" : ""}
+                  {measureState.measureInfo.priceChangePercent.toFixed(2)}%
+                </span>
+              </div>
+              <div className="measure-row">
+                <span className="measure-label">K线数</span>
+                <span className="measure-value">
+                  {measureState.measureInfo.klineCount} 根
+                </span>
+              </div>
+              <div className="measure-row">
+                <span className="measure-label">时间跨度</span>
+                <span className="measure-value">
+                  {measureState.measureInfo.timeSpan}
+                </span>
+              </div>
+              <div className="measure-divider"></div>
+              <div className="measure-row time-row">
+                <span className="measure-label">起点</span>
+                <span className="measure-value-small">
+                  {measureState.measureInfo.startTime} @{" "}
+                  {measureState.measureInfo.startPrice.toFixed(
+                    FORMAT_CONFIG.priceDecimal
+                  )}
+                </span>
+              </div>
+              <div className="measure-row time-row">
+                <span className="measure-label">终点</span>
+                <span className="measure-value-small">
+                  {measureState.measureInfo.endTime} @{" "}
+                  {measureState.measureInfo.endPrice.toFixed(
+                    FORMAT_CONFIG.priceDecimal
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <div
         className="macd-wrapper"
