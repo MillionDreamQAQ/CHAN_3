@@ -201,3 +201,18 @@
 .favorite-star-icon.unfavorite:hover {
   color: #fadb14 !important;
 }
+
+.refresh-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+  transform: rotate(180deg);
+}
+
+.refresh-button:active {
+  transform: rotate(360deg);
+}

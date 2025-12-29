@@ -15,6 +15,7 @@ import {
   StarOutlined,
   StarFilled,
   SearchOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import { getColors } from "../config/config";
 import axios from "axios";
@@ -348,6 +349,18 @@ const Header = ({
                 height: "32px",
                 backgroundColor: darkMode ? "#333" : "#fff",
                 color: darkMode ? "#fff" : "#333",
+              }}
+            />
+            <Button
+              type="default"
+              icon={<ReloadOutlined />}
+              onClick={() => onQuery({ code, kline_type: klineType, limit })}
+              className="refresh-button"
+              title="刷新数据"
+              size="small"
+              style={{
+                height: "32px",
+                width: "32px",
               }}
             />
           </div>
