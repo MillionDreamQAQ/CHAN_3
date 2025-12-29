@@ -118,6 +118,7 @@ export const useChartInit = (
             low: data.low,
             close: data.close,
             volume: originalKline?.volume || 0,
+            amount: originalKline?.amount || 0,
             prevClose: prevKline?.close || data.open,
           });
         }
@@ -134,6 +135,7 @@ export const useChartInit = (
             low: lastKline.low,
             close: lastKline.close,
             volume: lastKline.volume || 0,
+            amount: lastKline.amount || 0,
             prevClose: prevKline?.close || lastKline.open,
           });
         }

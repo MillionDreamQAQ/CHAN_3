@@ -1,6 +1,22 @@
 import { memo } from "react";
 import { FORMAT_CONFIG } from "../../../config/config";
 
+const formatLargeNumber = (num) => {
+  if (num >= FORMAT_CONFIG.volumeDivisorLarge) {
+    return (
+      (num / FORMAT_CONFIG.volumeDivisorLarge).toFixed(
+        FORMAT_CONFIG.volumeDecimal
+      ) + "亿"
+    );
+  } else if (num >= FORMAT_CONFIG.volumeDivisor) {
+    return (
+      (num / FORMAT_CONFIG.volumeDivisor).toFixed(FORMAT_CONFIG.volumeDecimal) +
+      "万"
+    );
+  }
+  return num.toFixed(FORMAT_CONFIG.volumeDecimal);
+};
+
 const KlineInfoPanel = ({ klineInfo }) => {
   if (!klineInfo) return null;
 
@@ -60,6 +76,21 @@ const KlineInfoPanel = ({ klineInfo }) => {
           <span className="kline-info-label">低</span>
           <span className="kline-info-value kline-info-low">
             {klineInfo.low.toFixed(FORMAT_CONFIG.priceDecimal)}
+          </span>
+        </div>
+      </div>
+      <div className="kline-info-volume">
+        <div className="kline-info-item">
+          <span className="kline-info-label">量</span>
+          <span className="kline-info-value">
+            {formatLargeNumber(klineInfo.volume || 0)}
+          </span>
+        </div>
+        <div className="kline-info-item kline-info-spacer">|</div>
+        <div className="kline-info-item">
+          <span className="kline-info-label">额</span>
+          <span className="kline-info-value">
+            {formatLargeNumber(klineInfo.amount || 0)}
           </span>
         </div>
       </div>
