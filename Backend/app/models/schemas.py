@@ -63,3 +63,75 @@ class ChanResponse(BaseModel):
     bs_points: List[BSPoint]
     zs_list: List[ZSInfo]
     cbsp_list: List[BSPoint]
+
+
+class ScanRequest(BaseModel):
+    """扫描请求"""
+    stock_pool: str = Field(
+        "all",
+        description="股票池类型: all=全市场, boards=按板块, custom=自定义"
+    )
+    boards: Optional[List[str]] = Field(
+        None,
+        description="板块列表，当stock_pool=boards时使用。可选值: sh_main(沪市主板), sz_main(深市主板), cyb(创业板), kcb(科创板), bj(北交所), etf(ETF)"
+    )
+    stock_codes: Optional[List[str]] = Field(
+        None,
+        description="自定义股票代码列表，当stock_pool=custom时使用"
+    )
+    kline_type: str = Field(
+        "day",
+        description="K线级别: day/week/month/1m/5m/15m/30m/60m"
+    )
+    bsp_types: List[str] = Field(
+        ["1", "1p", "2", "2s", "3a", "3b"],
+        description="要扫描的买卖点类型"
+    )
+    time_window_days: int = Field(
+        3,
+        description="时间窗口(天)，扫描最近N天内出现的买点"
+    )
+    limit: int = Field(
+        500,
+        description="每只股票获取的K线数量"
+    )
+
+
+class ScanTaskResponse(BaseModel):
+    """扫描任务启动响应"""
+    task_id: str
+    status: str = "started"
+    total_stocks: int
+
+
+class ScanProgress(BaseModel):
+    """扫描进度"""
+    task_id: str
+    status: str  # running / completed / cancelled / error
+    progress: int  # 0-100
+    processed_count: int
+    total_count: int
+    found_count: int
+    current_stock: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class ScanResultItem(BaseModel):
+    """单个扫描结果"""
+    code: str
+    name: Optional[str] = None
+    bsp_type: str
+    bsp_time: str
+    bsp_value: float
+    is_buy: bool
+    kline_type: str
+
+
+class ScanResultResponse(BaseModel):
+    """扫描结果响应"""
+    task_id: str
+    status: str
+    results: List[ScanResultItem]
+    total_scanned: int
+    total_found: int
+    elapsed_time: float

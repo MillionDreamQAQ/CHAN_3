@@ -17,7 +17,9 @@ import {
   StarFilled,
   SearchOutlined,
   ReloadOutlined,
+  ScanOutlined,
 } from "@ant-design/icons";
+import ScanModal from "./ScanModal";
 import {
   getColors,
   MA_COLORS,
@@ -54,6 +56,7 @@ const Header = ({
   const [limit, setLimit] = useState(2000);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
@@ -280,6 +283,13 @@ const Header = ({
             <div className="stock-info">
               <Button
                 type="text"
+                icon={<ScanOutlined />}
+                onClick={() => setScanModalOpen(true)}
+                className="scan-trigger"
+                title="批量扫描买点"
+              />
+              <Button
+                type="text"
                 icon={<SearchOutlined />}
                 onClick={openSearchModal}
                 className="search-trigger"
@@ -484,6 +494,14 @@ const Header = ({
           )}
         </div>
       </Modal>
+
+      <ScanModal
+        open={scanModalOpen}
+        onClose={() => setScanModalOpen(false)}
+        onSelectStock={(stockCode) => {
+          setCode(stockCode);
+        }}
+      />
     </>
   );
 };

@@ -1,0 +1,484 @@
+"""
+批量扫描服务
+使用多线程并行扫描股票买点
+"""
+
+import sys
+import os
+import re
+import asyncio
+import threading
+import time
+import logging
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional
+from uuid import uuid4
+
+import psycopg
+from dotenv import load_dotenv
+
+# 添加父目录到路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+
+from app.models.schemas import (
+    ScanRequest,
+    ScanProgress,
+    ScanResultItem,
+    ScanResultResponse,
+    ChanRequest,
+)
+from app.services.chan_service import ChanService
+
+load_dotenv()
+
+# 配置日志格式
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.DEBUG)  # 设置为DEBUG级别以查看详细日志
+
+
+class ScanTask:
+    """扫描任务状态"""
+
+    def __init__(self, task_id: str, total_stocks: int):
+        self.task_id = task_id
+        self.status = "running"
+        self.total_count = total_stocks
+        self.processed_count = 0
+        self.found_count = 0
+        self.current_stock: Optional[str] = None
+        self.results: List[ScanResultItem] = []
+        self.error_message: Optional[str] = None
+        self.start_time = time.time()
+        self.cancelled = False
+        self.lock = threading.Lock()
+        # 用于SSE的异步队列
+        self.progress_queue: asyncio.Queue = None
+
+    @property
+    def progress(self) -> int:
+        if self.total_count == 0:
+            return 100
+        return int(self.processed_count / self.total_count * 100)
+
+    @property
+    def elapsed_time(self) -> float:
+        return time.time() - self.start_time
+
+    def to_progress(self) -> ScanProgress:
+        return ScanProgress(
+            task_id=self.task_id,
+            status=self.status,
+            progress=self.progress,
+            processed_count=self.processed_count,
+            total_count=self.total_count,
+            found_count=self.found_count,
+            current_stock=self.current_stock,
+            error_message=self.error_message,
+        )
+
+    def to_result(self) -> ScanResultResponse:
+        return ScanResultResponse(
+            task_id=self.task_id,
+            status=self.status,
+            results=self.results,
+            total_scanned=self.processed_count,
+            total_found=self.found_count,
+            elapsed_time=self.elapsed_time,
+        )
+
+
+class ScanService:
+    """扫描服务"""
+
+    # 最大并发线程数
+    MAX_WORKERS = 15
+    # 单只股票超时时间(秒)
+    SINGLE_STOCK_TIMEOUT = 30
+    # 结果缓存时间(秒)
+    RESULT_CACHE_TTL = 1800  # 30分钟
+
+    def __init__(self):
+        self.executor = ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
+        self.tasks: Dict[str, ScanTask] = {}
+        self.lock = threading.Lock()
+
+    # 板块代码规则
+    BOARD_PATTERNS = {
+        "sh_main": lambda code: code.startswith("sh.60"),  # 沪市主板 60xxxx
+        "sz_main": lambda code: code.startswith("sz.00"),  # 深市主板 00xxxx
+        "cyb": lambda code: code.startswith("sz.30"),  # 创业板 30xxxx
+        "kcb": lambda code: code.startswith("sh.688"),  # 科创板 688xxx
+        "bj": lambda code: code.startswith("bj."),  # 北交所
+        "etf": lambda code: (  # ETF
+            code.startswith("sh.51")
+            or code.startswith("sh.56")
+            or code.startswith("sh.58")
+            or code.startswith("sz.15")
+            or code.startswith("sz.16")
+            or code.startswith("sz.18")
+        ),
+    }
+
+    def get_all_stocks(self) -> List[str]:
+        """从数据库获取所有股票代码"""
+        try:
+            conn = psycopg.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD"),
+                dbname=os.getenv("DB_NAME", "stock_db"),
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT code FROM stocks ORDER BY code")
+            codes = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            return codes
+        except Exception as e:
+            logger.error(f"获取股票列表失败: {e}")
+            return []
+
+    def get_stocks_by_boards(self, boards: List[str]) -> List[str]:
+        """根据板块筛选股票"""
+        all_stocks = self.get_all_stocks()
+        if not boards:
+            return all_stocks
+
+        filtered = []
+        for code in all_stocks:
+            for board in boards:
+                pattern = self.BOARD_PATTERNS.get(board)
+                if pattern and pattern(code):
+                    filtered.append(code)
+                    break  # 避免重复添加
+
+        return filtered
+
+    def get_stock_list(
+        self,
+        stock_pool: str,
+        boards: Optional[List[str]],
+        stock_codes: Optional[List[str]],
+    ) -> List[str]:
+        """根据股票池类型获取股票列表"""
+        if stock_pool == "custom" and stock_codes:
+            return stock_codes
+        elif stock_pool == "boards" and boards:
+            return self.get_stocks_by_boards(boards)
+        else:
+            return self.get_all_stocks()
+
+    def scan_single_stock(
+        self, code: str, request: ScanRequest, task: ScanTask
+    ) -> Optional[List[ScanResultItem]]:
+        """
+        扫描单只股票
+        返回该股票在时间窗口内的买点列表
+        """
+        if task.cancelled:
+            return None
+
+        try:
+            # 更新当前扫描的股票
+            with task.lock:
+                task.current_stock = code
+
+            # 调用缠论计算服务
+            chan_request = ChanRequest(
+                code=code,
+                kline_type=request.kline_type,
+                limit=request.limit,
+            )
+            result = ChanService.calculate_chan(chan_request)
+
+            # 记录原始买卖点数量
+            total_bsp = len(result.bs_points)
+            buy_points = [bsp for bsp in result.bs_points if bsp.is_buy]
+            logger.debug(
+                f"[{code}] 计算完成: 总买卖点={total_bsp}, 买点={len(buy_points)}"
+            )
+
+            # 记录买点详情（前5个）
+            if buy_points:
+                # for i, bsp in enumerate(buy_points[:5]):
+                for i, bsp in enumerate(buy_points):
+                    logger.debug(
+                        f"  [{code}] 买点{i+1}: type={bsp.type}, time={bsp.time}, is_buy={bsp.is_buy}"
+                    )
+
+            # 过滤买点
+            recent_buy_points = self.filter_buy_points(
+                result.bs_points,
+                request.bsp_types,
+                request.time_window_days,
+            )
+
+            logger.debug(
+                f"[{code}] 过滤后买点数: {len(recent_buy_points)} (筛选类型={request.bsp_types}, 时间窗口={request.time_window_days}天)"
+            )
+
+            if recent_buy_points:
+                logger.info(f"[{code}] 找到 {len(recent_buy_points)} 个符合条件的买点")
+                return [
+                    ScanResultItem(
+                        code=code,
+                        name=result.name,
+                        bsp_type=bsp.type,
+                        bsp_time=bsp.time,
+                        bsp_value=bsp.value,
+                        is_buy=bsp.is_buy,
+                        kline_type=request.kline_type,
+                    )
+                    for bsp in recent_buy_points
+                ]
+            return None
+
+        except Exception as e:
+            logger.warning(f"扫描股票 {code} 失败: {e}", exc_info=True)
+            return None
+
+    def filter_buy_points(
+        self, bs_points: list, bsp_types: List[str], time_window_days: int
+    ) -> list:
+        """
+        过滤买点：
+        1. 只保留买点(is_buy=True)
+        2. 类型在bsp_types中
+        3. 时间在最近N天内
+        """
+        cutoff_time = datetime.now() - timedelta(days=time_window_days)
+        recent_buy_points = []
+
+        # 调试：记录过滤条件
+        logger.debug(
+            f"过滤条件: cutoff_time={cutoff_time}, bsp_types={bsp_types}, time_window_days={time_window_days}"
+        )
+
+        skipped_not_buy = 0
+        skipped_type_mismatch = 0
+        skipped_time_old = 0
+        skipped_parse_error = 0
+
+        for bsp in bs_points:
+            if not bsp.is_buy:
+                skipped_not_buy += 1
+                continue
+
+            # bsp.type 是一个字符串，格式如 "[<BSP_TYPE.T1P: '1p'>]"
+            # 需要用正则提取其中的值如 '1p'
+            bsp_type_values = []
+            raw_type = bsp.type
+
+            # 使用正则提取单引号中的内容，如 '1p', '2', '3a' 等
+            matches = re.findall(r"'([^']+)'", str(raw_type))
+            if matches:
+                bsp_type_values = matches
+            else:
+                # 如果没匹配到，尝试直接使用
+                bsp_type_values = [str(raw_type)]
+
+            # 检查是否有任意类型匹配
+            type_matched = any(t in bsp_types for t in bsp_type_values)
+            if not type_matched:
+                skipped_type_mismatch += 1
+                logger.debug(
+                    f"  类型不匹配: bsp_type_values={bsp_type_values}, 期望={bsp_types}"
+                )
+                continue
+
+            # 解析买点时间
+            try:
+                # 时间格式可能是多种: "2024-01-15", "2024-01-15 09:30", "2024/01/15", "2024/01/15 09:30"
+                bsp_time_str = bsp.time
+                bsp_time = None
+
+                # 尝试不同的时间格式
+                time_formats = [
+                    "%Y-%m-%d %H:%M",
+                    "%Y-%m-%d",
+                    "%Y/%m/%d %H:%M",
+                    "%Y/%m/%d",
+                ]
+                for fmt in time_formats:
+                    try:
+                        bsp_time = datetime.strptime(bsp_time_str, fmt)
+                        break
+                    except ValueError:
+                        continue
+
+                if bsp_time is None:
+                    raise ValueError(f"无法解析时间格式: {bsp_time_str}")
+
+                if bsp_time >= cutoff_time:
+                    recent_buy_points.append(bsp)
+                    logger.debug(
+                        f"  ✓ 符合条件: type={bsp_type_values}, time={bsp.time}"
+                    )
+                else:
+                    skipped_time_old += 1
+                    logger.debug(
+                        f"  时间过早: bsp_time={bsp_time}, cutoff={cutoff_time}"
+                    )
+            except Exception as e:
+                skipped_parse_error += 1
+                logger.warning(f"解析买点时间失败: {bsp.time}, 错误: {e}")
+                continue
+
+        logger.debug(
+            f"过滤统计: 非买点={skipped_not_buy}, 类型不匹配={skipped_type_mismatch}, 时间过早={skipped_time_old}, 解析失败={skipped_parse_error}, 符合条件={len(recent_buy_points)}"
+        )
+
+        return recent_buy_points
+
+    def start_scan(self, request: ScanRequest) -> str:
+        """启动扫描任务"""
+        task_id = str(uuid4())
+
+        logger.info(f"========== 开始扫描任务 ==========")
+        logger.info(f"任务ID: {task_id}")
+        logger.info(
+            f"扫描参数: stock_pool={request.stock_pool}, boards={request.boards}, kline_type={request.kline_type}"
+        )
+        logger.info(f"买点类型: {request.bsp_types}")
+        logger.info(f"时间窗口: {request.time_window_days}天")
+        logger.info(f"K线数量: {request.limit}")
+
+        stocks = self.get_stock_list(
+            request.stock_pool, request.boards, request.stock_codes
+        )
+
+        if not stocks:
+            raise ValueError("没有可扫描的股票")
+
+        logger.info(f"待扫描股票数: {len(stocks)}")
+        if len(stocks) <= 10:
+            logger.info(f"股票列表: {stocks}")
+        else:
+            logger.info(f"股票列表(前10): {stocks[:10]}...")
+
+        task = ScanTask(task_id, len(stocks))
+
+        with self.lock:
+            self.tasks[task_id] = task
+
+        # 在后台线程中执行扫描
+        threading.Thread(
+            target=self._run_scan, args=(task, stocks, request), daemon=True
+        ).start()
+
+        return task_id
+
+    def _run_scan(self, task: ScanTask, stocks: List[str], request: ScanRequest):
+        """在后台线程中执行扫描"""
+        try:
+            futures = {
+                self.executor.submit(self.scan_single_stock, code, request, task): code
+                for code in stocks
+            }
+
+            for future in as_completed(futures):
+                if task.cancelled:
+                    break
+
+                code = futures[future]
+                try:
+                    result = future.result(timeout=self.SINGLE_STOCK_TIMEOUT)
+                    with task.lock:
+                        task.processed_count += 1
+                        if result:
+                            task.results.extend(result)
+                            task.found_count += len(result)
+
+                    # 推送进度更新
+                    self._push_progress(task)
+
+                except Exception as e:
+                    logger.warning(f"处理股票 {code} 结果失败: {e}")
+                    with task.lock:
+                        task.processed_count += 1
+
+            # 扫描完成
+            with task.lock:
+                if task.cancelled:
+                    task.status = "cancelled"
+                else:
+                    task.status = "completed"
+                task.current_stock = None
+
+            logger.info(f"========== 扫描任务完成 ==========")
+            logger.info(f"任务ID: {task.task_id}")
+            logger.info(f"状态: {task.status}")
+            logger.info(f"已扫描: {task.processed_count}/{task.total_count}")
+            logger.info(f"找到买点数: {task.found_count}")
+            logger.info(f"耗时: {task.elapsed_time:.2f}秒")
+
+            # 最终进度推送
+            self._push_progress(task)
+
+        except Exception as e:
+            logger.error(f"扫描任务 {task.task_id} 失败: {e}")
+            with task.lock:
+                task.status = "error"
+                task.error_message = str(e)
+            self._push_progress(task)
+
+    def _push_progress(self, task: ScanTask):
+        """推送进度更新到SSE队列"""
+        if task.progress_queue:
+            try:
+                # 使用线程安全的方式放入队列
+                asyncio.run_coroutine_threadsafe(
+                    task.progress_queue.put(task.to_progress()),
+                    asyncio.get_event_loop(),
+                )
+            except Exception:
+                pass
+
+    def get_task(self, task_id: str) -> Optional[ScanTask]:
+        """获取任务"""
+        with self.lock:
+            return self.tasks.get(task_id)
+
+    def get_progress(self, task_id: str) -> Optional[ScanProgress]:
+        """获取扫描进度"""
+        task = self.get_task(task_id)
+        if task:
+            return task.to_progress()
+        return None
+
+    def get_result(self, task_id: str) -> Optional[ScanResultResponse]:
+        """获取扫描结果"""
+        task = self.get_task(task_id)
+        if task:
+            return task.to_result()
+        return None
+
+    def cancel_scan(self, task_id: str) -> bool:
+        """取消扫描任务"""
+        task = self.get_task(task_id)
+        if task and task.status == "running":
+            with task.lock:
+                task.cancelled = True
+            return True
+        return False
+
+    def cleanup_old_tasks(self, max_age_seconds: int = 3600):
+        """清理过期的任务"""
+        current_time = time.time()
+        with self.lock:
+            expired_tasks = [
+                task_id
+                for task_id, task in self.tasks.items()
+                if current_time - task.start_time > max_age_seconds
+            ]
+            for task_id in expired_tasks:
+                del self.tasks[task_id]
+
+
+# 全局单例
+scan_service = ScanService()
