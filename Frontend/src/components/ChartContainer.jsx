@@ -826,6 +826,9 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
           containerRefs.current.main.style.cursor = "crosshair";
         }
       }
+      if (e.key === "Escape") {
+        handleClearMeasure();
+      }
     };
 
     const handleKeyUp = (e) => {
@@ -844,7 +847,7 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [handleClearMeasure]);
 
   useEffect(() => {
     if (!chartRefs.current.main || !seriesRefs.current.candlestick) return;
