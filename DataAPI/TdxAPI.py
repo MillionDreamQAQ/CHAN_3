@@ -202,7 +202,7 @@ class CTdxStockAPI(CCommonStockApi):
             DATA_FIELD.FIELD_TURNOVER: float(kline_item["Amount"]) / 1000.0,
         }
 
-        return CKLine_Unit(data_dict)
+        return CKLine_Unit(data_dict, autofix=True)
 
     def _parse_time(self, time_str: str) -> CTime:
         """
