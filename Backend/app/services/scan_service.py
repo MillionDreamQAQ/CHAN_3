@@ -366,7 +366,9 @@ class ScanService:
                 # 计算进度
                 total_count = row[8] or 1
                 processed_count = row[9] or 0
-                progress = int(processed_count / total_count * 100) if total_count > 0 else 0
+                progress = (
+                    int(processed_count / total_count * 100) if total_count > 0 else 0
+                )
 
                 # 格式化时间
                 created_at = row[12]
@@ -394,7 +396,9 @@ class ScanService:
             )
         except Exception as e:
             logger.error(f"获取任务列表失败: {e}")
-            return ScanTaskListResponse(tasks=[], total=0, page=page, page_size=page_size)
+            return ScanTaskListResponse(
+                tasks=[], total=0, page=page, page_size=page_size
+            )
 
     def get_task_detail(self, task_id: str) -> Optional[ScanTaskDetailResponse]:
         """获取任务详情（含结果）"""

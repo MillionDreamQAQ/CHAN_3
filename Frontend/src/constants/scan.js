@@ -2,7 +2,6 @@
  * 扫描功能相关常量
  */
 
-// 买点类型选项
 export const BSP_TYPE_OPTIONS = [
   { label: "一类(T1)", value: "1" },
   { label: "一类盘整(T1P)", value: "1p" },
@@ -12,7 +11,6 @@ export const BSP_TYPE_OPTIONS = [
   { label: "三类B(T3B)", value: "3b" },
 ];
 
-// K线类型选项
 export const KLINE_OPTIONS = [
   { label: "日线", value: "day" },
   { label: "周线", value: "week" },
@@ -23,7 +21,6 @@ export const KLINE_OPTIONS = [
   { label: "5分", value: "5m" },
 ];
 
-// 板块选项
 export const BOARD_OPTIONS = [
   { label: "沪市主板", value: "sh_main" },
   { label: "深市主板", value: "sz_main" },
@@ -33,7 +30,6 @@ export const BOARD_OPTIONS = [
   { label: "ETF", value: "etf" },
 ];
 
-// 买点类型颜色映射
 export const BSP_TYPE_COLORS = {
   1: "green",
   "1p": "cyan",
@@ -43,7 +39,6 @@ export const BSP_TYPE_COLORS = {
   "3b": "magenta",
 };
 
-// 任务状态颜色映射
 export const TASK_STATUS_COLORS = {
   running: "processing",
   completed: "success",
@@ -52,22 +47,20 @@ export const TASK_STATUS_COLORS = {
   pending: "default",
 };
 
-// 任务状态文本映射
 export const TASK_STATUS_TEXT = {
   running: "运行中",
   completed: "已完成",
   cancelled: "已取消",
-  error: "出错",
+  error: "异常",
   pending: "等待中",
 };
 
-// 默认扫描参数
 export const DEFAULT_SCAN_CONFIG = {
   stockPool: "all",
   boards: [],
   stockCodes: [],
   klineType: "day",
   bspTypes: ["1", "1p", "2"],
-  timeWindowDays: 3,
-  limit: 500,
+  timeWindowDays: 1,
+  limit: 1000,
 };

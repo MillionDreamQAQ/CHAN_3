@@ -2,6 +2,7 @@
 批量扫描API
 提供股票买点批量扫描功能
 """
+
 import asyncio
 import logging
 from typing import Optional
@@ -11,7 +12,6 @@ from sse_starlette.sse import EventSourceResponse
 from app.models.schemas import (
     ScanRequest,
     ScanTaskResponse,
-    ScanProgress,
     ScanResultResponse,
 )
 from app.models.scan_models import (
@@ -138,7 +138,9 @@ async def cancel_scan(task_id: str):
 async def get_task_list(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    status: Optional[str] = Query(None, description="状态筛选: all/running/completed/cancelled/error"),
+    status: Optional[str] = Query(
+        None, description="状态筛选: all/running/completed/cancelled/error"
+    ),
 ):
     """
     获取扫描任务列表

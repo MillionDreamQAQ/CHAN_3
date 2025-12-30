@@ -14,24 +14,19 @@ import "./ScanPage.css";
 const ScanPage = () => {
   const navigate = useNavigate();
 
-  // 暗黑模式状态
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode");
     return saved ? JSON.parse(saved) : false;
   });
 
-  // 扫描配置
   const [config, setConfig] = useState({ ...DEFAULT_SCAN_CONFIG });
 
-  // 是否只读模式（查看历史任务时）
   const [readOnly, setReadOnly] = useState(false);
 
-  // 扫描状态
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(null);
   const [currentTaskId, setCurrentTaskId] = useState(null);
 
-  // 任务列表
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -39,17 +34,14 @@ const ScanPage = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  // 结果
   const [results, setResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [selectedTaskStatus, setSelectedTaskStatus] = useState(null);
 
-  // 主题配置
   const themeConfig = {
     algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
   };
 
-  // 加载任务列表
   const loadTasks = useCallback(async () => {
     setTasksLoading(true);
     try {
@@ -64,12 +56,10 @@ const ScanPage = () => {
     }
   }, [page, pageSize]);
 
-  // 初始加载
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
 
-  // 选择任务
   const handleSelectTask = async (taskId) => {
     if (taskId === selectedTaskId) return;
 
@@ -81,7 +71,6 @@ const ScanPage = () => {
       setResults(detail.results);
       setSelectedTaskStatus(detail.task.status);
 
-      // 填充配置（只读模式）
       setConfig({
         stockPool: detail.task.stock_pool,
         boards: detail.task.boards || [],
@@ -93,7 +82,6 @@ const ScanPage = () => {
       });
       setReadOnly(true);
 
-      // 如果任务正在运行，订阅进度
       if (detail.task.status === "running") {
         setScanning(true);
         setCurrentTaskId(taskId);
@@ -107,20 +95,17 @@ const ScanPage = () => {
     }
   };
 
-  // 订阅进度
   const subscribeToProgress = (taskId) => {
     const eventSource = scanApi.subscribeProgress(
       taskId,
       (progressData) => {
         setProgress(progressData);
 
-        // 任务完成时刷新
         if (["completed", "cancelled", "error"].includes(progressData.status)) {
           setScanning(false);
           setSelectedTaskStatus(progressData.status);
           loadTasks();
 
-          // 重新加载结果
           scanApi.getTaskDetail(taskId).then((detail) => {
             setResults(detail.results);
           });
@@ -135,7 +120,6 @@ const ScanPage = () => {
     return eventSource;
   };
 
-  // 开始扫描
   const handleStartScan = async () => {
     try {
       const request = {
@@ -156,18 +140,15 @@ const ScanPage = () => {
       setResults([]);
       setSelectedTaskStatus("running");
 
-      // 订阅进度
       subscribeToProgress(response.task_id);
 
-      // 刷新任务列表
-      setTimeout(loadTasks, 500);
+      setTimeout(loadTasks, 1000);
     } catch (error) {
       console.error("启动扫描失败:", error);
       message.error("启动扫描失败");
     }
   };
 
-  // 取消扫描
   const handleCancelScan = async () => {
     if (!currentTaskId) return;
 
@@ -183,13 +164,11 @@ const ScanPage = () => {
     }
   };
 
-  // 删除任务
   const handleDeleteTask = async (taskId) => {
     try {
       await scanApi.deleteTask(taskId);
       message.success("任务已删除");
 
-      // 如果删除的是当前选中的任务，清空选择
       if (taskId === selectedTaskId) {
         setSelectedTaskId(null);
         setResults([]);
@@ -205,7 +184,6 @@ const ScanPage = () => {
     }
   };
 
-  // 新建任务
   const handleNewTask = () => {
     setReadOnly(false);
     setSelectedTaskId(null);
@@ -215,9 +193,7 @@ const ScanPage = () => {
     setProgress(null);
   };
 
-  // 选择股票（跳转到图表页面）
   const handleSelectStock = (record) => {
-    // 将股票信息存储到 localStorage，供图表页面使用
     localStorage.setItem(
       "selectedStock",
       JSON.stringify({
@@ -228,7 +204,6 @@ const ScanPage = () => {
     navigate("/");
   };
 
-  // 页码变化
   const handlePageChange = (newPage) => {
     setPage(newPage);
   };
@@ -236,7 +211,6 @@ const ScanPage = () => {
   return (
     <ConfigProvider theme={themeConfig}>
       <div className={`scan-page ${darkMode ? "dark-mode" : ""}`}>
-        {/* 头部 */}
         <div className="scan-page-header">
           <Button
             type="text"
@@ -249,11 +223,8 @@ const ScanPage = () => {
           <div style={{ width: 100 }} />
         </div>
 
-        {/* 内容区域 */}
         <div className="scan-page-content">
-          {/* 左侧面板 */}
           <div className="scan-left-panel">
-            {/* 配置区域 */}
             <div className="scan-config-section">
               <ScanConfigPanel
                 config={config}
@@ -267,7 +238,6 @@ const ScanPage = () => {
               />
             </div>
 
-            {/* 任务列表区域 */}
             <div className="scan-task-list-section">
               <TaskListPanel
                 tasks={tasks}
@@ -284,7 +254,6 @@ const ScanPage = () => {
             </div>
           </div>
 
-          {/* 右侧结果面板 */}
           <div className="scan-right-panel">
             <ResultPanel
               results={results}

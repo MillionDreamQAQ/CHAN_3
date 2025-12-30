@@ -12,7 +12,6 @@ const ResultPanel = ({
   onSelectStock,
   taskStatus,
 }) => {
-  // 按买点类型筛选的选项
   const bspTypeFilters = useMemo(() => {
     const types = [...new Set(results.map((r) => r.bsp_type))];
     return types.map((t) => ({ text: t.toUpperCase(), value: t }));
@@ -95,7 +94,9 @@ const ResultPanel = ({
         <Table
           columns={columns}
           dataSource={results}
-          rowKey={(record) => `${record.code}-${record.bsp_time}-${record.bsp_type}`}
+          rowKey={(record) =>
+            `${record.code}-${record.bsp_time}-${record.bsp_type}`
+          }
           size="small"
           loading={loading}
           pagination={{

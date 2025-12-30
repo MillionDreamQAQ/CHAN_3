@@ -41,7 +41,7 @@ const TaskListPanel = ({
       title: "进度",
       dataIndex: "progress",
       key: "progress",
-      width: 80,
+      width: 60,
       render: (progress, record) =>
         record.status === "running" ? (
           <Progress percent={progress} size="small" showInfo={false} />
@@ -54,13 +54,13 @@ const TaskListPanel = ({
       dataIndex: "found_count",
       key: "found_count",
       width: 60,
-      align: "right",
+      align: "left",
     },
     {
       title: "耗时",
       dataIndex: "elapsed_time",
       key: "elapsed_time",
-      width: 70,
+      width: 60,
       render: (time) => `${time.toFixed(1)}s`,
     },
     {

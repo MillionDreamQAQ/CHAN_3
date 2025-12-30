@@ -57,7 +57,6 @@ const Header = ({
   const [klineType, setKlineType] = useState("day");
   const [limit, setLimit] = useState(2000);
 
-  // 处理从扫描页面返回时的初始股票选择
   useEffect(() => {
     if (initialStock) {
       setCode(initialStock.code);

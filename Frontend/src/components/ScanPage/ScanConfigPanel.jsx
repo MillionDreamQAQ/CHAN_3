@@ -10,7 +10,11 @@ import {
   Space,
   Input,
 } from "antd";
-import { PlayCircleOutlined, StopOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  PlayCircleOutlined,
+  StopOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import {
   BSP_TYPE_OPTIONS,
   KLINE_OPTIONS,
@@ -81,7 +85,6 @@ const ScanConfigPanel = ({
       </div>
 
       <div className="config-body">
-        {/* 股票范围 */}
         <div className="config-row">
           <span className="config-label">股票范围</span>
           <div className="config-content">
@@ -97,7 +100,6 @@ const ScanConfigPanel = ({
           </div>
         </div>
 
-        {/* 板块选择 */}
         {config.stockPool === "boards" && (
           <div className="config-row">
             <span className="config-label">选择板块</span>
@@ -112,7 +114,6 @@ const ScanConfigPanel = ({
           </div>
         )}
 
-        {/* 自定义股票 */}
         {config.stockPool === "custom" && (
           <div className="config-row">
             <span className="config-label">股票代码</span>
@@ -128,9 +129,8 @@ const ScanConfigPanel = ({
           </div>
         )}
 
-        {/* K线级别 */}
         <div className="config-row">
-          <span className="config-label">K线级别</span>
+          <span className="config-label">K 线级别</span>
           <div className="config-content">
             <Segmented
               options={KLINE_OPTIONS}
@@ -141,7 +141,6 @@ const ScanConfigPanel = ({
           </div>
         </div>
 
-        {/* 买点类型 */}
         <div className="config-row">
           <span className="config-label">买点类型</span>
           <div className="config-content bsp-types">
@@ -159,7 +158,6 @@ const ScanConfigPanel = ({
           </div>
         </div>
 
-        {/* 时间窗口和K线数量 */}
         <div className="config-row">
           <span className="config-label">时间窗口</span>
           <div className="config-content">
@@ -170,14 +168,16 @@ const ScanConfigPanel = ({
                 value={config.timeWindowDays}
                 onChange={handleTimeWindowChange}
                 disabled={readOnly}
-                addonAfter="天"
+                suffix="天"
                 style={{ width: 100 }}
               />
-              <span style={{ marginLeft: 16 }}>K线数量</span>
+              <span className="config-label" style={{ marginLeft: 16 }}>
+                K 线数量
+              </span>
               <InputNumber
-                min={100}
-                max={2000}
-                step={100}
+                min={1000}
+                max={20000}
+                step={1000}
                 value={config.limit}
                 onChange={handleLimitChange}
                 disabled={readOnly}
@@ -187,7 +187,6 @@ const ScanConfigPanel = ({
           </div>
         </div>
 
-        {/* 进度显示 */}
         {scanning && progress && (
           <div className="config-row progress-row">
             <div className="progress-info">
@@ -209,7 +208,6 @@ const ScanConfigPanel = ({
           </div>
         )}
 
-        {/* 操作按钮 */}
         {!readOnly && (
           <div className="config-row actions-row">
             <Space>
@@ -219,18 +217,13 @@ const ScanConfigPanel = ({
                   icon={<PlayCircleOutlined />}
                   onClick={onStartScan}
                   disabled={
-                    config.stockPool === "boards" &&
-                    config.boards.length === 0
+                    config.stockPool === "boards" && config.boards.length === 0
                   }
                 >
                   开始扫描
                 </Button>
               ) : (
-                <Button
-                  danger
-                  icon={<StopOutlined />}
-                  onClick={onCancelScan}
-                >
+                <Button danger icon={<StopOutlined />} onClick={onCancelScan}>
                   取消扫描
                 </Button>
               )}
