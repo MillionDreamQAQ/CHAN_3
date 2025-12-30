@@ -40,7 +40,7 @@ load_dotenv()
 
 # 配置日志格式
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -687,7 +687,6 @@ class ScanService:
             matches = re.findall(r"'([^']+)'", str(raw_type))
             if matches:
                 bsp_type_values = matches
-                bsp.type = bsp_type_values[0]
             else:
                 bsp_type_values = [str(raw_type)]
 
@@ -699,6 +698,17 @@ class ScanService:
                     f"  类型不匹配: bsp_type_values={bsp_type_values}, 期望={bsp_types}"
                 )
                 continue
+            else:
+                if len(bsp_type_values) > 1:
+                    logger.debug(
+                        f"  单K线存在多个买点类型: bsp_type_values={bsp_type_values}, 期望={bsp_types}, 已选择第一个匹配的买点"
+                    )
+                    for t in bsp_types:
+                        if t in bsp_type_values:
+                            bsp.type = t
+                            break
+                else: 
+                    bsp.type = bsp_type_values[0]
 
             # 解析买点时间
             try:
