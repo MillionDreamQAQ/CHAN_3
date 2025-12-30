@@ -49,7 +49,6 @@ const ResultPanel = ({
       key: "bsp_time",
       width: 140,
       sorter: (a, b) => a.bsp_time.localeCompare(b.bsp_time),
-      defaultSortOrder: "descend",
     },
     {
       title: "价格",
@@ -59,6 +58,7 @@ const ResultPanel = ({
       align: "left",
       sorter: (a, b) => a.bsp_value - b.bsp_value,
       render: (value) => value.toFixed(2),
+      defaultSortOrder: "descend",
     },
     {
       title: "K线级别",

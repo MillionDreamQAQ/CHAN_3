@@ -105,7 +105,6 @@ export interface ScanResultResponse {
   elapsed_time: number;
 }
 
-// 新增：任务列表项
 export interface ScanTaskListItem {
   id: string;
   status: string;
@@ -115,7 +114,6 @@ export interface ScanTaskListItem {
   elapsed_time: number;
 }
 
-// 新增：任务列表响应
 export interface ScanTaskListResponse {
   tasks: ScanTaskListItem[];
   total: number;
@@ -123,7 +121,6 @@ export interface ScanTaskListResponse {
   page_size: number;
 }
 
-// 新增：数据库中的任务详情
 export interface ScanTaskDB {
   id: string;
   status: string;
@@ -145,7 +142,6 @@ export interface ScanTaskDB {
   elapsed_time: number;
 }
 
-// 新增：任务详情响应
 export interface ScanTaskDetailResponse {
   task: ScanTaskDB;
   results: ScanResultItem[];

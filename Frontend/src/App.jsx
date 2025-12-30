@@ -17,11 +17,9 @@ function App() {
     return saved === "true";
   });
 
-  // 用于传递给 Header 的初始股票选择（从扫描页面返回时使用）
   const [initialStock, setInitialStock] = useState(null);
   const initialLoadRef = useRef(true);
 
-  // 检查是否从扫描页面返回并选择了股票
   useEffect(() => {
     const selectedStock = localStorage.getItem("selectedStock");
     if (selectedStock && initialLoadRef.current) {

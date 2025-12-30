@@ -272,11 +272,9 @@ class CTdxStockAPI(CCommonStockApi):
         """
         初始化（TDX API不需要登录，此方法为空实现）
         """
-        logger.info("TDX API 不需要初始化")
 
     @classmethod
     def do_close(cls):
         """
         关闭连接（TDX API不需要登出，此方法为空实现）
         """
-        logger.info("TDX API 不需要关闭连接")
