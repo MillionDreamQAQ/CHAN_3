@@ -110,19 +110,14 @@ class ScanTask:
 class ScanService:
     """扫描服务"""
 
-    # 最大并发线程数
     MAX_WORKERS = 15
-    # 单只股票超时时间(秒)
     SINGLE_STOCK_TIMEOUT = 30
-    # 结果缓存时间(秒)
-    RESULT_CACHE_TTL = 1800  # 30分钟
 
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
         self.tasks: Dict[str, ScanTask] = {}
         self.lock = threading.Lock()
 
-    # 板块代码规则
     BOARD_PATTERNS = {
         "sh_main": lambda code: code.startswith("sh.60"),  # 沪市主板 60xxxx
         "sz_main": lambda code: code.startswith("sz.00"),  # 深市主板 00xxxx
