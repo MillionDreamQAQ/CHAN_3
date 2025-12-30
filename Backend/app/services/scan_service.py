@@ -139,44 +139,6 @@ class ScanService:
         ),
     }
 
-    # 板块名称映射
-    BOARD_NAMES = {
-        "sh_main": "沪市主板",
-        "sz_main": "深市主板",
-        "cyb": "创业板",
-        "kcb": "科创板",
-        "bj": "北交所",
-        "etf": "ETF",
-    }
-
-    # 股票池名称映射
-    POOL_NAMES = {
-        "all": "全市场",
-        "boards": "板块",
-        "custom": "自定义",
-    }
-
-    # K线类型名称映射
-    KLINE_NAMES = {
-        "day": "日线",
-        "week": "周线",
-        "month": "月线",
-        "60m": "60分",
-        "30m": "30分",
-        "15m": "15分",
-        "5m": "5分",
-    }
-
-    # 买点类型名称映射
-    BSP_NAMES = {
-        "1": "T1",
-        "1p": "T1P",
-        "2": "T2",
-        "2s": "T2S",
-        "3a": "T3A",
-        "3b": "T3B",
-    }
-
     def get_all_stocks(self) -> List[str]:
         """从数据库获取所有股票代码"""
         try:
@@ -220,30 +182,6 @@ class ScanService:
             return self.get_stocks_by_boards(boards)
         else:
             return self.get_all_stocks()
-
-    def generate_params_summary(self, request: ScanRequest) -> str:
-        """生成参数摘要字符串"""
-        # 股票池
-        if request.stock_pool == "boards" and request.boards:
-            board_names = [self.BOARD_NAMES.get(b, b) for b in request.boards[:2]]
-            pool_str = ",".join(board_names)
-            if len(request.boards) > 2:
-                pool_str += f"等{len(request.boards)}个"
-        elif request.stock_pool == "custom":
-            pool_str = f"自定义{len(request.stock_codes or [])}只"
-        else:
-            pool_str = "全市场"
-
-        # K线类型
-        kline_str = self.KLINE_NAMES.get(request.kline_type, request.kline_type)
-
-        # 买点类型
-        bsp_names = [self.BSP_NAMES.get(t, t) for t in request.bsp_types[:3]]
-        bsp_str = ",".join(bsp_names)
-        if len(request.bsp_types) > 3:
-            bsp_str += "..."
-
-        return f"{pool_str} | {kline_str} | {bsp_str}"
 
     # ==================== 数据库操作 ====================
 
@@ -425,17 +363,6 @@ class ScanService:
 
             tasks = []
             for row in cursor.fetchall():
-                # 构造 ScanRequest 用于生成摘要
-                request = ScanRequest(
-                    stock_pool=row[2],
-                    boards=row[3],
-                    stock_codes=row[4],
-                    kline_type=row[5],
-                    bsp_types=row[6],
-                    time_window_days=row[7],
-                )
-                params_summary = self.generate_params_summary(request)
-
                 # 计算进度
                 total_count = row[8] or 1
                 processed_count = row[9] or 0
@@ -453,7 +380,6 @@ class ScanService:
                         id=str(row[0]),
                         status=row[1],
                         created_at=created_at_str,
-                        params_summary=params_summary,
                         progress=progress,
                         found_count=row[10] or 0,
                         elapsed_time=row[11] or 0,

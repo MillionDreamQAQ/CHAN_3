@@ -110,7 +110,6 @@ export interface ScanTaskListItem {
   id: string;
   status: string;
   created_at: string;
-  params_summary: string;
   progress: number;
   found_count: number;
   elapsed_time: number;

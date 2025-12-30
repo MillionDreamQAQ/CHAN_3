@@ -38,12 +38,6 @@ const TaskListPanel = ({
       ),
     },
     {
-      title: "参数",
-      dataIndex: "params_summary",
-      key: "params_summary",
-      ellipsis: true,
-    },
-    {
       title: "进度",
       dataIndex: "progress",
       key: "progress",

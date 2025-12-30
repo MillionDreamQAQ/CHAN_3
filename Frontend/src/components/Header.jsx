@@ -20,7 +20,6 @@ import {
   ReloadOutlined,
   ScanOutlined,
 } from "@ant-design/icons";
-import ScanModal from "./ScanModal";
 import {
   getColors,
   MA_COLORS,
@@ -69,7 +68,6 @@ const Header = ({
   }, [initialStock]);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [scanModalOpen, setScanModalOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
@@ -507,14 +505,6 @@ const Header = ({
           )}
         </div>
       </Modal>
-
-      <ScanModal
-        open={scanModalOpen}
-        onClose={() => setScanModalOpen(false)}
-        onSelectStock={(stockCode) => {
-          setCode(stockCode);
-        }}
-      />
     </>
   );
 };

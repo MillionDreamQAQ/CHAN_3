@@ -33,7 +33,6 @@ class ScanTaskListItem(BaseModel):
     id: str
     status: str
     created_at: str
-    params_summary: str  # 如 "全市场 | 日线 | T1,T1P,T2"
     progress: int
     found_count: int
     elapsed_time: float
