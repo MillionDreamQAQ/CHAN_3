@@ -120,7 +120,7 @@ const TaskListPanel = ({
             onClick: () => onSelectTask(record.id),
             className: record.id === selectedTaskId ? "selected-row" : "",
           })}
-          scroll={{ y: "calc(100% - 80px)" }}
+          locale={{ emptyText: "无任务数据" }}
         />
       </div>
     </div>

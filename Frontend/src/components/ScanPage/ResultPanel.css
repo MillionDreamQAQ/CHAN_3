@@ -35,6 +35,52 @@
 
 .result-body .ant-table-wrapper {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-body .ant-table-wrapper .ant-spin-nested-loading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-body .ant-table-wrapper .ant-spin-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-body .ant-table-wrapper .ant-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-body .ant-table-wrapper .ant-table-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-body .ant-table-wrapper .ant-table-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto !important;
+}
+
+.result-body .ant-table-wrapper .ant-table-content table {
+  min-width: 100%;
+}
+
+.result-body .ant-table-wrapper .ant-table-content thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .result-body .ant-table {

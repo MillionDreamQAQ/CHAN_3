@@ -56,7 +56,7 @@ const ResultPanel = ({
       dataIndex: "bsp_value",
       key: "bsp_value",
       width: 80,
-      align: "right",
+      align: "left",
       sorter: (a, b) => a.bsp_value - b.bsp_value,
       render: (value) => value.toFixed(2),
     },
@@ -109,7 +109,6 @@ const ResultPanel = ({
             onClick: () => onSelectStock?.(record),
             style: { cursor: "pointer" },
           })}
-          scroll={{ y: "calc(100% - 80px)" }}
         />
       </div>
     </div>
