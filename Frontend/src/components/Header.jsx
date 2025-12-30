@@ -120,14 +120,6 @@ const Header = ({
   }, []);
 
   useEffect(() => {
-    onQuery({
-      code,
-      kline_type: klineType,
-      limit,
-    });
-  }, []);
-
-  useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === "f") {
         e.preventDefault();
