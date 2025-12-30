@@ -18,19 +18,15 @@ function App() {
     return saved === "true";
   });
 
-  // 股票查询相关状态
   const [currentStock, setCurrentStock] = useState({
     code: "sh.000001",
     klineType: "day",
     limit: 2000,
   });
 
-  // 股票搜索 hook
   const stockSearch = useStockSearch();
-
   const initialLoadRef = useRef(true);
 
-  // 处理从 ScanPage 跳转过来的情况
   useEffect(() => {
     const selectedStock = localStorage.getItem("selectedStock");
     if (selectedStock && initialLoadRef.current) {
@@ -121,7 +117,6 @@ function App() {
     });
   }, []);
 
-  // 股票/周期/数量变更回调
   const handleStockChange = useCallback((code) => {
     setCurrentStock((prev) => ({ ...prev, code }));
   }, []);
@@ -155,7 +150,6 @@ function App() {
     }
   };
 
-  // 刷新回调
   const handleRefresh = useCallback(() => {
     handleQuery({
       code: currentStock.code,
@@ -164,7 +158,6 @@ function App() {
     });
   }, [currentStock]);
 
-  // 股票/周期/数量变化时自动查询
   useEffect(() => {
     if (currentStock.code) {
       handleQuery({

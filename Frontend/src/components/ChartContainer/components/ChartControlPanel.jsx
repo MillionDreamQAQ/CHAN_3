@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { Button, InputNumber, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import "./ChartControlPanel.css";
@@ -25,41 +26,35 @@ const ChartControlPanel = ({
   onRefresh,
   darkMode,
 }) => {
+  const [localLimit, setLocalLimit] = useState(limit);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    setLocalLimit(limit);
+  }, [limit]);
+
+  const handleLocalLimitChange = (value) => {
+    setLocalLimit(value);
+    if (value) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(() => {
+        onLimitChange(value);
+      }, 1000);
+    }
+  };
+
   return (
     <div className={`chart-control-panel ${darkMode ? "dark" : ""}`}>
       <div className="kline-buttons">
         <Space.Compact>
-          {KLINE_GROUPS.slice(0, 3).map((item) => (
+          {KLINE_GROUPS.map((item) => (
             <Button
               key={item.value}
               type={klineType === item.value ? "primary" : "default"}
               size="medium"
-              onClick={() => onKlineTypeChange(item.value)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Space.Compact>
-        <div className="kline-divider"></div>
-        <Space.Compact>
-          {KLINE_GROUPS.slice(3, 5).map((item) => (
-            <Button
-              key={item.value}
-              type={klineType === item.value ? "primary" : "default"}
-              size="medium"
-              onClick={() => onKlineTypeChange(item.value)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Space.Compact>
-        <div className="kline-divider"></div>
-        <Space.Compact>
-          {KLINE_GROUPS.slice(5, 8).map((item) => (
-            <Button
-              key={item.value}
-              type={klineType === item.value ? "primary" : "default"}
-              size="medium"
+              style={{ width: 32 }}
               onClick={() => onKlineTypeChange(item.value)}
             >
               {item.label}
@@ -68,8 +63,8 @@ const ChartControlPanel = ({
         </Space.Compact>
       </div>
       <InputNumber
-        value={limit}
-        onChange={onLimitChange}
+        value={localLimit}
+        onChange={handleLocalLimitChange}
         placeholder="数据条数"
         changeOnWheel={true}
         step={1000}
