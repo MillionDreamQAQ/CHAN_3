@@ -31,12 +31,12 @@ export const INDICATOR_CATEGORIES = {
 };
 
 export const getDefaultIndicators = () => ({
-  maType: MA_TYPES.MA,
+  maType: MA_TYPES.EMA,
   maPeriods: {
     5: true,
     10: true,
-    20: true,
-    30: true,
+    20: false,
+    30: false,
   },
   bi: true,
   seg: true,
