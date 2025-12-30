@@ -19,7 +19,6 @@ const StockSearchModal = ({
   const [searchResults, setSearchResults] = useState([]);
   const searchInputRef = useRef(null);
 
-  // 打开弹窗时聚焦输入框并显示收藏
   useEffect(() => {
     if (open) {
       setTimeout(() => {
@@ -32,7 +31,6 @@ const StockSearchModal = ({
     }
   }, [open]);
 
-  // 收藏变化时更新搜索结果
   useEffect(() => {
     if (open) {
       handleSearch(searchText);
@@ -108,6 +106,7 @@ const StockSearchModal = ({
                         style={{
                           color: "#fadb14",
                           marginRight: "8px",
+                          marginLeft: "8px",
                           cursor: "pointer",
                           fontSize: "16px",
                         }}

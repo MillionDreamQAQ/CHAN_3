@@ -28,12 +28,12 @@ const ChartControlPanel = ({
   return (
     <div className={`chart-control-panel ${darkMode ? "dark" : ""}`}>
       <div className="kline-buttons">
-        <Space.Compact size="small">
+        <Space.Compact>
           {KLINE_GROUPS.slice(0, 3).map((item) => (
             <Button
               key={item.value}
               type={klineType === item.value ? "primary" : "default"}
-              size="small"
+              size="medium"
               onClick={() => onKlineTypeChange(item.value)}
             >
               {item.label}
@@ -41,12 +41,12 @@ const ChartControlPanel = ({
           ))}
         </Space.Compact>
         <div className="kline-divider"></div>
-        <Space.Compact size="small">
+        <Space.Compact>
           {KLINE_GROUPS.slice(3, 5).map((item) => (
             <Button
               key={item.value}
               type={klineType === item.value ? "primary" : "default"}
-              size="small"
+              size="medium"
               onClick={() => onKlineTypeChange(item.value)}
             >
               {item.label}
@@ -54,12 +54,12 @@ const ChartControlPanel = ({
           ))}
         </Space.Compact>
         <div className="kline-divider"></div>
-        <Space.Compact size="small">
+        <Space.Compact>
           {KLINE_GROUPS.slice(5, 8).map((item) => (
             <Button
               key={item.value}
               type={klineType === item.value ? "primary" : "default"}
-              size="small"
+              size="medium"
               onClick={() => onKlineTypeChange(item.value)}
             >
               {item.label}
@@ -75,7 +75,7 @@ const ChartControlPanel = ({
         step={1000}
         min={1000}
         max={20000}
-        size="small"
+        size="medium"
         className="limit-input"
       />
       <Button
@@ -84,7 +84,7 @@ const ChartControlPanel = ({
         onClick={onRefresh}
         className="refresh-button"
         title="刷新数据"
-        size="small"
+        size="medium"
       />
     </div>
   );

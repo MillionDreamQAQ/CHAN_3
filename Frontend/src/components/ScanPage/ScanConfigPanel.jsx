@@ -76,7 +76,7 @@ const ScanConfigPanel = ({
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            size="small"
+            size="medium"
             onClick={onNewTask}
           >
             新建任务
@@ -86,7 +86,7 @@ const ScanConfigPanel = ({
 
       <div className="config-body">
         <div className="config-row">
-          <span className="config-label">股票范围</span>
+          <span className="config-label">股票范围：</span>
           <div className="config-content">
             <Radio.Group
               value={config.stockPool}
@@ -102,7 +102,7 @@ const ScanConfigPanel = ({
 
         {config.stockPool === "boards" && (
           <div className="config-row">
-            <span className="config-label">选择板块</span>
+            <span className="config-label">选择板块：</span>
             <div className="config-content">
               <Checkbox.Group
                 options={BOARD_OPTIONS}
@@ -116,7 +116,7 @@ const ScanConfigPanel = ({
 
         {config.stockPool === "custom" && (
           <div className="config-row">
-            <span className="config-label">股票代码</span>
+            <span className="config-label">股票代码：</span>
             <div className="config-content">
               <Input.TextArea
                 placeholder="输入股票代码，用逗号或空格分隔，如：sh.600000, sz.000001"
@@ -130,7 +130,7 @@ const ScanConfigPanel = ({
         )}
 
         <div className="config-row">
-          <span className="config-label">K 线级别</span>
+          <span className="config-label">K 线级别：</span>
           <div className="config-content">
             <Segmented
               options={KLINE_OPTIONS}
@@ -142,7 +142,7 @@ const ScanConfigPanel = ({
         </div>
 
         <div className="config-row">
-          <span className="config-label">买点类型</span>
+          <span className="config-label">买点类型：</span>
           <div className="config-content bsp-types">
             <Checkbox.Group
               value={config.bspTypes}
@@ -159,7 +159,7 @@ const ScanConfigPanel = ({
         </div>
 
         <div className="config-row">
-          <span className="config-label">时间窗口</span>
+          <span className="config-label">时间窗口：</span>
           <div className="config-content">
             <Space>
               <InputNumber
@@ -172,7 +172,7 @@ const ScanConfigPanel = ({
                 style={{ width: 100 }}
               />
               <span className="config-label" style={{ marginLeft: 16 }}>
-                K 线数量
+                K 线数量：
               </span>
               <InputNumber
                 min={1000}

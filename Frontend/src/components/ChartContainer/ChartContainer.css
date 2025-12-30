@@ -64,11 +64,10 @@ body.dark-mode .loading-indicator {
   margin: 0;
 }
 
-/* Kline Info Panel */
 .kline-info-panel {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 10px;
+  left: 10px;
   z-index: 100;
   padding: 16px 20px;
   background: rgba(255, 255, 255, 0.95);
@@ -147,7 +146,7 @@ body.dark-mode .kline-info-panel {
 }
 
 .kline-info-down {
-  color: #1dc36a !important;
+  color: #24a03b !important;
 }
 
 .kline-info-high {
@@ -155,7 +154,7 @@ body.dark-mode .kline-info-panel {
 }
 
 .kline-info-low {
-  color: #1dc36a;
+  color: #24a03b;
 }
 
 .kline-info-volume {
@@ -278,7 +277,7 @@ body.dark-mode .measure-close-btn:hover {
 }
 
 .measure-value.down {
-  color: #1dc36a !important;
+  color: #24a03b !important;
 }
 
 .measure-value-small {

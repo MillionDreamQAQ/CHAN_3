@@ -21,7 +21,7 @@ export const MOVING_AVERAGE_PERIODS = [5, 10, 20, 30];
 export const MA_COLORS = {
   5: "#EB2E00",
   10: "#EABC01",
-  20: "#14EB00",
+  20: "#24a03b",
   30: "#017EEB",
 };
 

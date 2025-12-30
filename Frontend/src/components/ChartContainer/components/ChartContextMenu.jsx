@@ -39,10 +39,7 @@ const ChartContextMenu = ({
     {
       key: "ma-type",
       label: (
-        <div
-          className="menu-item-content"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="menu-item-content" onClick={(e) => e.stopPropagation()}>
           <Segmented
             size="small"
             value={indicators.maType}
@@ -85,10 +82,7 @@ const ChartContextMenu = ({
     {
       key: "bi",
       label: (
-        <div
-          className="menu-item-content"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="menu-item-content" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={indicators.bi}
             onChange={() => onToggleIndicator("bi")}
@@ -101,10 +95,7 @@ const ChartContextMenu = ({
     {
       key: "seg",
       label: (
-        <div
-          className="menu-item-content"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="menu-item-content" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={indicators.seg}
             onChange={() => onToggleIndicator("seg")}
@@ -117,10 +108,7 @@ const ChartContextMenu = ({
     {
       key: "zs",
       label: (
-        <div
-          className="menu-item-content"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="menu-item-content" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={indicators.zs}
             onChange={() => onToggleIndicator("zs")}
@@ -133,10 +121,7 @@ const ChartContextMenu = ({
     {
       key: "bsPoints",
       label: (
-        <div
-          className="menu-item-content"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="menu-item-content" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={indicators.bsPoints}
             onChange={() => onToggleIndicator("bsPoints")}
