@@ -205,8 +205,7 @@ class ScanService:
 
             # 记录买点详情（前5个）
             if buy_points:
-                # for i, bsp in enumerate(buy_points[:5]):
-                for i, bsp in enumerate(buy_points):
+                for i, bsp in enumerate(buy_points[:5]):
                     logger.debug(
                         f"  [{code}] 买点{i+1}: type={bsp.type}, time={bsp.time}, is_buy={bsp.is_buy}"
                     )
@@ -278,8 +277,8 @@ class ScanService:
             matches = re.findall(r"'([^']+)'", str(raw_type))
             if matches:
                 bsp_type_values = matches
+                bsp.type = bsp_type_values[0]
             else:
-                # 如果没匹配到，尝试直接使用
                 bsp_type_values = [str(raw_type)]
 
             # 检查是否有任意类型匹配
@@ -293,23 +292,14 @@ class ScanService:
 
             # 解析买点时间
             try:
-                # 时间格式可能是多种: "2024-01-15", "2024-01-15 09:30", "2024/01/15", "2024/01/15 09:30"
                 bsp_time_str = bsp.time
                 bsp_time = None
 
-                # 尝试不同的时间格式
-                time_formats = [
-                    "%Y-%m-%d %H:%M",
-                    "%Y-%m-%d",
-                    "%Y/%m/%d %H:%M",
-                    "%Y/%m/%d",
-                ]
-                for fmt in time_formats:
-                    try:
-                        bsp_time = datetime.strptime(bsp_time_str, fmt)
-                        break
-                    except ValueError:
-                        continue
+                time_formats = "%Y/%m/%d %H:%M"
+                try:
+                    bsp_time = datetime.strptime(bsp_time_str, time_formats)
+                except ValueError:
+                    continue
 
                 if bsp_time is None:
                     raise ValueError(f"无法解析时间格式: {bsp_time_str}")

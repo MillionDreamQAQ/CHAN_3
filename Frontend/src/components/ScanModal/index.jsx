@@ -17,7 +17,6 @@ import { ScanOutlined, StopOutlined } from "@ant-design/icons";
 import { scanApi } from "../../services/api";
 import "./ScanModal.css";
 
-// 买卖点类型配置
 const BSP_TYPE_OPTIONS = [
   { label: "一类(T1)", value: "1" },
   { label: "一类盘整(T1P)", value: "1p" },
@@ -27,7 +26,6 @@ const BSP_TYPE_OPTIONS = [
   { label: "三类B(T3B)", value: "3b" },
 ];
 
-// K线级别配置
 const KLINE_OPTIONS = [
   { label: "日线", value: "day" },
   { label: "周线", value: "week" },
@@ -38,7 +36,6 @@ const KLINE_OPTIONS = [
   { label: "5分", value: "5m" },
 ];
 
-// 板块选项配置
 const BOARD_OPTIONS = [
   { label: "沪市主板", value: "sh_main" },
   { label: "深市主板", value: "sz_main" },
@@ -48,7 +45,6 @@ const BOARD_OPTIONS = [
   { label: "ETF", value: "etf" },
 ];
 
-// 买卖点类型颜色映射
 const BSP_TYPE_COLORS = {
   1: "green",
   "1p": "cyan",
@@ -59,26 +55,22 @@ const BSP_TYPE_COLORS = {
 };
 
 const ScanModal = ({ open, onClose, onSelectStock }) => {
-  // 配置状态
   const [stockPool, setStockPool] = useState("all");
   const [selectedBoards, setSelectedBoards] = useState(["sh_main", "sz_main"]);
   const [customCodes, setCustomCodes] = useState("");
   const [klineType, setKlineType] = useState("day");
   const [bspTypes, setBspTypes] = useState(["1", "1p", "2"]);
   const [timeWindowDays, setTimeWindowDays] = useState(3);
-  const [limit, setLimit] = useState(500);
+  const [limit, setLimit] = useState(1000);
 
-  // 扫描状态
   const [scanning, setScanning] = useState(false);
   const [taskId, setTaskId] = useState(null);
   const [progress, setProgress] = useState(null);
   const [results, setResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
 
-  // SSE连接引用
   const eventSourceRef = useRef(null);
 
-  // 清理SSE连接
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
@@ -87,20 +79,16 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
     };
   }, []);
 
-  // Modal关闭时重置状态
   useEffect(() => {
     if (!open) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
-      // 保留结果，不重置配置
     }
   }, [open]);
 
-  // 开始扫描
   const handleStartScan = async () => {
     try {
-      // 构建请求
       const request = {
         stock_pool: stockPool,
         boards: stockPool === "boards" ? selectedBoards : undefined,
@@ -149,11 +137,9 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
         found_count: 0,
       });
 
-      // 启动扫描任务
       const response = await scanApi.startScan(request);
       setTaskId(response.task_id);
 
-      // 订阅进度更新
       eventSourceRef.current = scanApi.subscribeProgress(
         response.task_id,
         (progressData) => {
@@ -180,7 +166,6 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
     }
   };
 
-  // 扫描完成后获取结果
   const handleScanComplete = async (id) => {
     try {
       const result = await scanApi.getResults(id);
@@ -197,7 +182,6 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
     }
   };
 
-  // 取消扫描
   const handleCancelScan = async () => {
     if (taskId) {
       try {
@@ -212,13 +196,11 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
     setScanning(false);
   };
 
-  // 点击结果行跳转到股票
   const handleRowClick = (record) => {
     onSelectStock(record.code);
     onClose();
   };
 
-  // 结果表格列定义
   const columns = [
     {
       title: "代码",
@@ -276,12 +258,10 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
       className="scan-modal"
     >
       <div className="scan-modal-content">
-        {/* 配置区域 */}
         {!showResults && (
           <div className="scan-config">
-            {/* 股票范围 */}
             <div className="config-row">
-              <span className="config-label">股票范围:</span>
+              <span className="config-label">股票范围：</span>
               <Radio.Group
                 value={stockPool}
                 onChange={(e) => setStockPool(e.target.value)}
@@ -319,9 +299,8 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
               </div>
             )}
 
-            {/* K线级别 */}
             <div className="config-row">
-              <span className="config-label">K线级别:</span>
+              <span className="config-label">K 线级别：</span>
               <Segmented
                 options={KLINE_OPTIONS}
                 value={klineType}
@@ -330,9 +309,8 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
               />
             </div>
 
-            {/* 买卖点类型 */}
             <div className="config-row">
-              <span className="config-label">买点类型:</span>
+              <span className="config-label">买点类型：</span>
               <Checkbox.Group
                 options={BSP_TYPE_OPTIONS}
                 value={bspTypes}
@@ -341,37 +319,35 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
               />
             </div>
 
-            {/* 时间窗口 */}
             <div className="config-row">
-              <span className="config-label">时间窗口:</span>
+              <span className="config-label">时间窗口：</span>
               <InputNumber
                 value={timeWindowDays}
                 onChange={setTimeWindowDays}
                 min={1}
                 max={30}
                 disabled={scanning}
-                addonAfter="天"
-                style={{ width: 120 }}
+                style={{ width: 90 }}
+                suffix="天"
               />
+
               <span className="config-hint">扫描最近N天内出现的买点</span>
             </div>
 
-            {/* K线数量 */}
             <div className="config-row">
-              <span className="config-label">K线数量:</span>
+              <span className="config-label">K 线数量：</span>
               <InputNumber
                 value={limit}
                 onChange={setLimit}
-                min={100}
-                max={2000}
-                step={100}
+                min={1000}
+                max={20000}
+                step={1000}
                 disabled={scanning}
                 style={{ width: 120 }}
               />
               <span className="config-hint">每只股票获取的K线数量</span>
             </div>
 
-            {/* 操作按钮 */}
             <div className="config-actions">
               {!scanning ? (
                 <Button
@@ -394,7 +370,6 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
               )}
             </div>
 
-            {/* 进度显示 */}
             {scanning && progress && (
               <div className="scan-progress">
                 <Progress
@@ -415,7 +390,6 @@ const ScanModal = ({ open, onClose, onSelectStock }) => {
           </div>
         )}
 
-        {/* 结果区域 */}
         {showResults && (
           <div className="scan-results">
             <div className="results-header">
