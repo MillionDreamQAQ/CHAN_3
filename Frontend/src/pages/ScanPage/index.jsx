@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ConfigProvider, theme, Button, message } from "antd";
+import { ConfigProvider, theme, Button, message, Modal, Spin } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import {
   ScanConfigPanel,
   TaskListPanel,
   ResultPanel,
 } from "../../components/ScanPage";
-import { scanApi } from "../../services/api";
+import ChartContainer from "../../components/ChartContainer";
+import { scanApi, chanApi } from "../../services/api";
 import { DEFAULT_SCAN_CONFIG } from "../../constants/scan";
+import { getDefaultIndicators } from "../../config/config";
 import "./ScanPage.css";
 
 const ScanPage = () => {
@@ -37,6 +39,19 @@ const ScanPage = () => {
   const [results, setResults] = useState([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [selectedTaskStatus, setSelectedTaskStatus] = useState(null);
+
+  // 图表弹窗相关状态
+  const [chartModalOpen, setChartModalOpen] = useState(false);
+  const [chartData, setChartData] = useState(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // 图表指标和收藏状态
+  const [indicators, setIndicators] = useState(() => getDefaultIndicators());
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem("favorites");
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const themeConfig = {
     algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
@@ -193,16 +208,86 @@ const ScanPage = () => {
     setProgress(null);
   };
 
-  const handleSelectStock = (record) => {
-    localStorage.setItem(
-      "selectedStock",
-      JSON.stringify({
+  const handleSelectStock = async (record) => {
+    setSelectedRecord(record);
+    setChartModalOpen(true);
+    setChartLoading(true);
+    setChartData(null);
+
+    try {
+      const result = await chanApi.calculateChan({
         code: record.code,
-        klineType: record.kline_type,
-      })
-    );
-    navigate("/");
+        kline_type: record.kline_type,
+        limit: 2000,
+      });
+      setChartData(result);
+    } catch (error) {
+      console.error("加载股票数据失败:", error);
+      message.error("加载股票数据失败");
+    } finally {
+      setChartLoading(false);
+    }
   };
+
+  const handleCloseChartModal = () => {
+    setChartModalOpen(false);
+    setChartData(null);
+    setSelectedRecord(null);
+  };
+
+  // 图表 K线级别切换
+  const handleChartKlineTypeChange = useCallback(
+    async (klineType) => {
+      if (!selectedRecord) return;
+
+      setSelectedRecord((prev) => ({ ...prev, kline_type: klineType }));
+      setChartLoading(true);
+
+      try {
+        const result = await chanApi.calculateChan({
+          code: selectedRecord.code,
+          kline_type: klineType,
+          limit: 2000,
+        });
+        setChartData(result);
+      } catch (error) {
+        console.error("加载数据失败:", error);
+        message.error("加载数据失败");
+      } finally {
+        setChartLoading(false);
+      }
+    },
+    [selectedRecord]
+  );
+
+  // MA 类型切换
+  const handleSetMAType = useCallback((type) => {
+    setIndicators((prev) => ({ ...prev, maType: type }));
+  }, []);
+
+  // MA 周期切换
+  const handleToggleMAPeriod = useCallback((period) => {
+    setIndicators((prev) => ({
+      ...prev,
+      maPeriods: { ...prev.maPeriods, [period]: !prev.maPeriods[period] },
+    }));
+  }, []);
+
+  // 缠论指标切换
+  const handleToggleIndicator = useCallback((key) => {
+    setIndicators((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  // 收藏切换
+  const handleToggleFavorite = useCallback((code) => {
+    setFavorites((prev) => {
+      const newFavorites = prev.includes(code)
+        ? prev.filter((c) => c !== code)
+        : [...prev, code];
+      localStorage.setItem("favorites", JSON.stringify(newFavorites));
+      return newFavorites;
+    });
+  }, []);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -263,6 +348,45 @@ const ScanPage = () => {
             />
           </div>
         </div>
+
+        <Modal
+          title={
+            selectedRecord
+              ? `${selectedRecord.name} (${selectedRecord.code})`
+              : "股票详情"
+          }
+          open={chartModalOpen}
+          onCancel={handleCloseChartModal}
+          footer={null}
+          width="95vw"
+          style={{ top: 20 }}
+          styles={{ body: { height: "85vh", padding: 0 } }}
+          destroyOnHidden={true}
+        >
+          {chartLoading ? (
+            <div className="chart-modal-loading">
+              <Spin size="large" tip="加载中..." />
+            </div>
+          ) : chartData ? (
+            <ChartContainer
+              style={{ height: "100%" }}
+              data={chartData}
+              darkMode={darkMode}
+              indicators={indicators}
+              favorites={favorites}
+              currentStock={{
+                code: selectedRecord?.code,
+                klineType: selectedRecord?.kline_type,
+                limit: 2000,
+              }}
+              onKlineTypeChange={handleChartKlineTypeChange}
+              onSetMAType={handleSetMAType}
+              onToggleMAPeriod={handleToggleMAPeriod}
+              onToggleIndicator={handleToggleIndicator}
+              onToggleFavorite={handleToggleFavorite}
+            />
+          ) : null}
+        </Modal>
       </div>
     </ConfigProvider>
   );

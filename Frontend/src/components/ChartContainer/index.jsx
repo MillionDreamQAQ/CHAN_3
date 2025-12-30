@@ -33,6 +33,7 @@ import {
 
 const ChartContainer = ({
   data,
+  style = {},
   darkMode = false,
   indicators = {},
   favorites = [],
@@ -594,7 +595,7 @@ const ChartContainer = ({
       onToggleIndicator={onToggleIndicator}
       darkMode={darkMode}
     >
-      <div className="chart-container">
+      <div className="chart-container" style={style}>
         {loading && (
           <div className="loading-indicator">
             <div className="spinner" />

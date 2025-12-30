@@ -100,3 +100,11 @@
   --hover-bg: #1e3a5f;
   --selected-bg: #003a8c;
 }
+
+.chart-modal-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 400px;
+}

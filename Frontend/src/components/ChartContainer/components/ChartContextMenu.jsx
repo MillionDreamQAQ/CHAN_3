@@ -48,6 +48,7 @@ const ChartContextMenu = ({
               { label: "MA", value: MA_TYPES.MA },
               { label: "EMA", value: MA_TYPES.EMA },
             ]}
+            style={{ marginLeft: "-2px" }}
           />
         </div>
       ),

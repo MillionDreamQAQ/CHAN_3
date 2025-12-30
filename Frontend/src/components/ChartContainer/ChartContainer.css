@@ -80,6 +80,7 @@ body.dark-mode .loading-indicator {
   gap: 24px;
   font-family: "Monaco", "Menlo", "Courier New", monospace;
   transition: background 0.3s ease;
+  line-height: 1.2;
 }
 
 body.dark-mode .kline-info-panel {
