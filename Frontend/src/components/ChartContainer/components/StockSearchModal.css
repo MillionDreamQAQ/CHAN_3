@@ -27,3 +27,35 @@ body.dark-mode .stock-list-item:hover {
 .favorite-star-icon.unfavorite:hover {
   color: #fadb14 !important;
 }
+
+.stock-search-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.stock-search-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.stock-search-list::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.stock-search-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.stock-search-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+body.dark-mode .stock-search-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .stock-search-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}

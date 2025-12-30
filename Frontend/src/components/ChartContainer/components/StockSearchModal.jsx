@@ -141,7 +141,7 @@ const StockSearchModal = ({
                 </div>
               </List.Item>
             )}
-            style={{ maxHeight: "400px", overflowY: "auto" }}
+            className="stock-search-list"
           />
         ) : (
           <div
