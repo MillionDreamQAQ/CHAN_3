@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Header from "./components/Header";
 import ChartContainer from "./components/ChartContainer";
 import { chanApi } from "./services/api";
@@ -16,6 +16,25 @@ function App() {
     const saved = localStorage.getItem("darkMode");
     return saved === "true";
   });
+
+  // 用于传递给 Header 的初始股票选择（从扫描页面返回时使用）
+  const [initialStock, setInitialStock] = useState(null);
+  const initialLoadRef = useRef(true);
+
+  // 检查是否从扫描页面返回并选择了股票
+  useEffect(() => {
+    const selectedStock = localStorage.getItem("selectedStock");
+    if (selectedStock && initialLoadRef.current) {
+      try {
+        const stockInfo = JSON.parse(selectedStock);
+        setInitialStock(stockInfo);
+        localStorage.removeItem("selectedStock");
+      } catch (e) {
+        console.error("解析选中股票失败:", e);
+      }
+    }
+    initialLoadRef.current = false;
+  }, []);
 
   const [indicators, setIndicators] = useState(() => {
     const saved = localStorage.getItem("indicators");
@@ -118,6 +137,7 @@ function App() {
           darkMode={darkMode}
           indicators={indicators}
           favorites={favorites}
+          initialStock={initialStock}
           onSetMAType={setMAType}
           onToggleIndicator={toggleIndicator}
           onToggleMAPeriod={toggleMAPeriod}

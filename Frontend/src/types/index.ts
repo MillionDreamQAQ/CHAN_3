@@ -104,3 +104,50 @@ export interface ScanResultResponse {
   total_found: number;
   elapsed_time: number;
 }
+
+// 新增：任务列表项
+export interface ScanTaskListItem {
+  id: string;
+  status: string;
+  created_at: string;
+  params_summary: string;
+  progress: number;
+  found_count: number;
+  elapsed_time: number;
+}
+
+// 新增：任务列表响应
+export interface ScanTaskListResponse {
+  tasks: ScanTaskListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+// 新增：数据库中的任务详情
+export interface ScanTaskDB {
+  id: string;
+  status: string;
+  stock_pool: string;
+  boards: string[] | null;
+  stock_codes: string[] | null;
+  kline_type: string;
+  bsp_types: string[];
+  time_window_days: number;
+  kline_limit: number;
+  total_count: number;
+  processed_count: number;
+  found_count: number;
+  current_stock: string | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  elapsed_time: number;
+}
+
+// 新增：任务详情响应
+export interface ScanTaskDetailResponse {
+  task: ScanTaskDB;
+  results: ScanResultItem[];
+}

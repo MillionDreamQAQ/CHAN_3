@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Spin,
@@ -35,12 +36,14 @@ const Header = ({
   darkMode,
   indicators,
   favorites,
+  initialStock,
   onSetMAType,
   onToggleIndicator,
   onToggleMAPeriod,
   onToggleDarkMode,
   onToggleFavorite,
 }) => {
+  const navigate = useNavigate();
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
   const maColors = useMemo(
     () =>
@@ -54,6 +57,16 @@ const Header = ({
   const [code, setCode] = useState("sh.000001");
   const [klineType, setKlineType] = useState("day");
   const [limit, setLimit] = useState(2000);
+
+  // 处理从扫描页面返回时的初始股票选择
+  useEffect(() => {
+    if (initialStock) {
+      setCode(initialStock.code);
+      if (initialStock.klineType) {
+        setKlineType(initialStock.klineType);
+      }
+    }
+  }, [initialStock]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
@@ -284,9 +297,9 @@ const Header = ({
               <Button
                 type="text"
                 icon={<ScanOutlined />}
-                onClick={() => setScanModalOpen(true)}
+                onClick={() => navigate("/scan")}
                 className="scan-trigger"
-                title="批量扫描买点"
+                title="打开扫描页面"
               />
               <Button
                 type="text"

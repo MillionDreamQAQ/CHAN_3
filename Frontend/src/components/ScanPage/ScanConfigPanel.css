@@ -1,0 +1,77 @@
+.scan-config-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  margin-bottom: 12px;
+}
+
+.config-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.config-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.config-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.config-label {
+  min-width: 70px;
+  text-align: right;
+  line-height: 32px;
+  color: var(--text-secondary, #666);
+  font-size: 13px;
+}
+
+.config-content {
+  flex: 1;
+}
+
+.config-content .ant-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bsp-types .ant-checkbox-wrapper {
+  margin-inline-start: 0;
+}
+
+.progress-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.progress-info {
+  width: 100%;
+}
+
+.progress-text {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  margin-top: 4px;
+}
+
+.actions-row {
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color, #f0f0f0);
+  margin-top: 4px;
+}

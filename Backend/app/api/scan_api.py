@@ -4,7 +4,8 @@
 """
 import asyncio
 import logging
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from app.models.schemas import (
@@ -12,6 +13,10 @@ from app.models.schemas import (
     ScanTaskResponse,
     ScanProgress,
     ScanResultResponse,
+)
+from app.models.scan_models import (
+    ScanTaskListResponse,
+    ScanTaskDetailResponse,
 )
 from app.services.scan_service import scan_service
 
@@ -124,3 +129,61 @@ async def cancel_scan(task_id: str):
         return {"success": True, "message": "任务已取消"}
     else:
         raise HTTPException(status_code=400, detail="无法取消任务(可能已完成或不存在)")
+
+
+# ==================== 新增API端点 ====================
+
+
+@router.get("/tasks", response_model=ScanTaskListResponse)
+async def get_task_list(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    status: Optional[str] = Query(None, description="状态筛选: all/running/completed/cancelled/error"),
+):
+    """
+    获取扫描任务列表
+
+    Args:
+        page: 页码，从1开始
+        page_size: 每页数量，默认20，最大100
+        status: 状态筛选
+
+    Returns:
+        任务列表及分页信息
+    """
+    return scan_service.get_task_list(page, page_size, status)
+
+
+@router.get("/tasks/{task_id}", response_model=ScanTaskDetailResponse)
+async def get_task_detail(task_id: str):
+    """
+    获取任务详情（含扫描结果）
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务详细信息和扫描结果列表
+    """
+    detail = scan_service.get_task_detail(task_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return detail
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str):
+    """
+    删除扫描任务及其结果
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        删除结果
+    """
+    success = scan_service.delete_task(task_id)
+    if success:
+        return {"success": True, "message": "任务已删除"}
+    else:
+        raise HTTPException(status_code=404, detail="任务不存在")

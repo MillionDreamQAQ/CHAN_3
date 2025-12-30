@@ -1,0 +1,62 @@
+.task-list-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.task-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color, #f0f0f0);
+  margin-bottom: 8px;
+}
+
+.task-list-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.task-list-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.task-list-body .ant-table-wrapper {
+  height: 100%;
+}
+
+.task-list-body .ant-table {
+  font-size: 12px;
+}
+
+.task-list-body .ant-table-thead > tr > th {
+  padding: 8px 8px;
+  font-size: 12px;
+}
+
+.task-list-body .ant-table-tbody > tr > td {
+  padding: 6px 8px;
+}
+
+.task-list-body .ant-table-tbody > tr {
+  cursor: pointer;
+}
+
+.task-list-body .ant-table-tbody > tr:hover > td {
+  background-color: var(--hover-bg, #e6f7ff) !important;
+}
+
+.task-list-body .ant-table-tbody > tr.selected-row > td {
+  background-color: var(--selected-bg, #bae7ff) !important;
+}
+
+/* 暗黑模式 */
+.dark-mode .task-list-body .ant-table-tbody > tr:hover > td {
+  background-color: var(--hover-bg, #1e3a5f) !important;
+}
+
+.dark-mode .task-list-body .ant-table-tbody > tr.selected-row > td {
+  background-color: var(--selected-bg, #003a8c) !important;
+}

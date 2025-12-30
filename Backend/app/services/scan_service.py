@@ -1,6 +1,6 @@
 """
 批量扫描服务
-使用多线程并行扫描股票买点
+使用多线程并行扫描股票买点，支持数据库持久化
 """
 
 import sys
@@ -28,6 +28,12 @@ from app.models.schemas import (
     ScanResultResponse,
     ChanRequest,
 )
+from app.models.scan_models import (
+    ScanTaskDB,
+    ScanTaskListItem,
+    ScanTaskListResponse,
+    ScanTaskDetailResponse,
+)
 from app.services.chan_service import ChanService
 
 load_dotenv()
@@ -37,7 +43,17 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)  # 设置为DEBUG级别以查看详细日志
+
+
+def get_db_connection():
+    """获取数据库连接"""
+    return psycopg.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        user=os.getenv("DB_USER", "postgres"),
+        password=os.getenv("DB_PASSWORD"),
+        dbname=os.getenv("DB_NAME", "stock_db"),
+    )
 
 
 class ScanTask:
@@ -123,16 +139,48 @@ class ScanService:
         ),
     }
 
+    # 板块名称映射
+    BOARD_NAMES = {
+        "sh_main": "沪市主板",
+        "sz_main": "深市主板",
+        "cyb": "创业板",
+        "kcb": "科创板",
+        "bj": "北交所",
+        "etf": "ETF",
+    }
+
+    # 股票池名称映射
+    POOL_NAMES = {
+        "all": "全市场",
+        "boards": "板块",
+        "custom": "自定义",
+    }
+
+    # K线类型名称映射
+    KLINE_NAMES = {
+        "day": "日线",
+        "week": "周线",
+        "month": "月线",
+        "60m": "60分",
+        "30m": "30分",
+        "15m": "15分",
+        "5m": "5分",
+    }
+
+    # 买点类型名称映射
+    BSP_NAMES = {
+        "1": "T1",
+        "1p": "T1P",
+        "2": "T2",
+        "2s": "T2S",
+        "3a": "T3A",
+        "3b": "T3B",
+    }
+
     def get_all_stocks(self) -> List[str]:
         """从数据库获取所有股票代码"""
         try:
-            conn = psycopg.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=os.getenv("DB_PORT", "5432"),
-                user=os.getenv("DB_USER", "postgres"),
-                password=os.getenv("DB_PASSWORD"),
-                dbname=os.getenv("DB_NAME", "stock_db"),
-            )
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT code FROM stocks ORDER BY code")
             codes = [row[0] for row in cursor.fetchall()]
@@ -172,6 +220,438 @@ class ScanService:
             return self.get_stocks_by_boards(boards)
         else:
             return self.get_all_stocks()
+
+    def generate_params_summary(self, request: ScanRequest) -> str:
+        """生成参数摘要字符串"""
+        # 股票池
+        if request.stock_pool == "boards" and request.boards:
+            board_names = [self.BOARD_NAMES.get(b, b) for b in request.boards[:2]]
+            pool_str = ",".join(board_names)
+            if len(request.boards) > 2:
+                pool_str += f"等{len(request.boards)}个"
+        elif request.stock_pool == "custom":
+            pool_str = f"自定义{len(request.stock_codes or [])}只"
+        else:
+            pool_str = "全市场"
+
+        # K线类型
+        kline_str = self.KLINE_NAMES.get(request.kline_type, request.kline_type)
+
+        # 买点类型
+        bsp_names = [self.BSP_NAMES.get(t, t) for t in request.bsp_types[:3]]
+        bsp_str = ",".join(bsp_names)
+        if len(request.bsp_types) > 3:
+            bsp_str += "..."
+
+        return f"{pool_str} | {kline_str} | {bsp_str}"
+
+    # ==================== 数据库操作 ====================
+
+    def create_task_in_db(self, task_id: str, request: ScanRequest, total_count: int):
+        """在数据库中创建任务记录"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO scan_tasks (
+                    id, status, stock_pool, boards, stock_codes,
+                    kline_type, bsp_types, time_window_days, kline_limit,
+                    total_count, processed_count, found_count, created_at, started_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                )
+                """,
+                (
+                    task_id,
+                    "running",
+                    request.stock_pool,
+                    request.boards,
+                    request.stock_codes,
+                    request.kline_type,
+                    request.bsp_types,
+                    request.time_window_days,
+                    request.limit,
+                    total_count,
+                    0,
+                    0,
+                ),
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info(f"任务 {task_id} 已写入数据库")
+        except Exception as e:
+            logger.error(f"创建任务记录失败: {e}")
+            raise
+
+    def update_task_progress(self, task: ScanTask):
+        """更新任务进度到数据库"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE scan_tasks SET
+                    status = %s,
+                    processed_count = %s,
+                    found_count = %s,
+                    current_stock = %s,
+                    error_message = %s,
+                    elapsed_time = %s
+                WHERE id = %s
+                """,
+                (
+                    task.status,
+                    task.processed_count,
+                    task.found_count,
+                    task.current_stock,
+                    task.error_message,
+                    task.elapsed_time,
+                    task.task_id,
+                ),
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"更新任务进度失败: {e}")
+
+    def complete_task_in_db(self, task: ScanTask):
+        """完成任务并更新数据库"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE scan_tasks SET
+                    status = %s,
+                    processed_count = %s,
+                    found_count = %s,
+                    current_stock = NULL,
+                    error_message = %s,
+                    elapsed_time = %s,
+                    completed_at = NOW()
+                WHERE id = %s
+                """,
+                (
+                    task.status,
+                    task.processed_count,
+                    task.found_count,
+                    task.error_message,
+                    task.elapsed_time,
+                    task.task_id,
+                ),
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info(f"任务 {task.task_id} 已完成，状态已更新到数据库")
+        except Exception as e:
+            logger.error(f"完成任务更新失败: {e}")
+
+    def save_results_to_db(self, task_id: str, results: List[ScanResultItem]):
+        """批量保存扫描结果到数据库"""
+        if not results:
+            return
+
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 批量插入
+            values = [
+                (
+                    task_id,
+                    r.code,
+                    r.name,
+                    r.bsp_type,
+                    r.bsp_time,
+                    r.bsp_value,
+                    r.is_buy,
+                    r.kline_type,
+                )
+                for r in results
+            ]
+
+            cursor.executemany(
+                """
+                INSERT INTO scan_results (
+                    task_id, code, name, bsp_type, bsp_time, bsp_value, is_buy, kline_type
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                values,
+            )
+            conn.commit()
+            cursor.close()
+            conn.close()
+            logger.info(f"已保存 {len(results)} 条扫描结果到数据库")
+        except Exception as e:
+            logger.error(f"保存扫描结果失败: {e}")
+
+    def get_task_list(
+        self, page: int = 1, page_size: int = 20, status: Optional[str] = None
+    ) -> ScanTaskListResponse:
+        """获取任务列表"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 构建查询条件
+            where_clause = ""
+            params = []
+            if status and status != "all":
+                where_clause = "WHERE status = %s"
+                params.append(status)
+
+            # 获取总数
+            cursor.execute(f"SELECT COUNT(*) FROM scan_tasks {where_clause}", params)
+            total = cursor.fetchone()[0]
+
+            # 获取分页数据
+            offset = (page - 1) * page_size
+            cursor.execute(
+                f"""
+                SELECT id, status, stock_pool, boards, stock_codes, kline_type, bsp_types,
+                       time_window_days, total_count, processed_count, found_count,
+                       elapsed_time, created_at
+                FROM scan_tasks
+                {where_clause}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                params + [page_size, offset],
+            )
+
+            tasks = []
+            for row in cursor.fetchall():
+                # 构造 ScanRequest 用于生成摘要
+                request = ScanRequest(
+                    stock_pool=row[2],
+                    boards=row[3],
+                    stock_codes=row[4],
+                    kline_type=row[5],
+                    bsp_types=row[6],
+                    time_window_days=row[7],
+                )
+                params_summary = self.generate_params_summary(request)
+
+                # 计算进度
+                total_count = row[8] or 1
+                processed_count = row[9] or 0
+                progress = int(processed_count / total_count * 100) if total_count > 0 else 0
+
+                # 格式化时间
+                created_at = row[12]
+                if isinstance(created_at, datetime):
+                    created_at_str = created_at.strftime("%m-%d %H:%M")
+                else:
+                    created_at_str = str(created_at)
+
+                tasks.append(
+                    ScanTaskListItem(
+                        id=str(row[0]),
+                        status=row[1],
+                        created_at=created_at_str,
+                        params_summary=params_summary,
+                        progress=progress,
+                        found_count=row[10] or 0,
+                        elapsed_time=row[11] or 0,
+                    )
+                )
+
+            cursor.close()
+            conn.close()
+
+            return ScanTaskListResponse(
+                tasks=tasks, total=total, page=page, page_size=page_size
+            )
+        except Exception as e:
+            logger.error(f"获取任务列表失败: {e}")
+            return ScanTaskListResponse(tasks=[], total=0, page=page, page_size=page_size)
+
+    def get_task_detail(self, task_id: str) -> Optional[ScanTaskDetailResponse]:
+        """获取任务详情（含结果）"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 获取任务信息
+            cursor.execute(
+                """
+                SELECT id, status, stock_pool, boards, stock_codes, kline_type, bsp_types,
+                       time_window_days, kline_limit, total_count, processed_count, found_count,
+                       current_stock, error_message, created_at, started_at, completed_at, elapsed_time
+                FROM scan_tasks
+                WHERE id = %s
+                """,
+                (task_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                cursor.close()
+                conn.close()
+                return None
+
+            # 格式化时间
+            def format_time(t):
+                if t is None:
+                    return None
+                if isinstance(t, datetime):
+                    return t.strftime("%Y-%m-%d %H:%M:%S")
+                return str(t)
+
+            task = ScanTaskDB(
+                id=str(row[0]),
+                status=row[1],
+                stock_pool=row[2],
+                boards=row[3],
+                stock_codes=row[4],
+                kline_type=row[5],
+                bsp_types=row[6],
+                time_window_days=row[7],
+                kline_limit=row[8],
+                total_count=row[9] or 0,
+                processed_count=row[10] or 0,
+                found_count=row[11] or 0,
+                current_stock=row[12],
+                error_message=row[13],
+                created_at=format_time(row[14]),
+                started_at=format_time(row[15]),
+                completed_at=format_time(row[16]),
+                elapsed_time=row[17] or 0,
+            )
+
+            # 获取结果
+            cursor.execute(
+                """
+                SELECT code, name, bsp_type, bsp_time, bsp_value, is_buy, kline_type
+                FROM scan_results
+                WHERE task_id = %s
+                ORDER BY bsp_time DESC
+                """,
+                (task_id,),
+            )
+
+            results = []
+            for r in cursor.fetchall():
+                results.append(
+                    ScanResultItem(
+                        code=r[0],
+                        name=r[1],
+                        bsp_type=r[2],
+                        bsp_time=r[3],
+                        bsp_value=r[4],
+                        is_buy=r[5],
+                        kline_type=r[6],
+                    )
+                )
+
+            cursor.close()
+            conn.close()
+
+            return ScanTaskDetailResponse(task=task, results=results)
+        except Exception as e:
+            logger.error(f"获取任务详情失败: {e}")
+            return None
+
+    def delete_task(self, task_id: str) -> bool:
+        """删除任务及其结果"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 先检查任务是否存在
+            cursor.execute("SELECT status FROM scan_tasks WHERE id = %s", (task_id,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.close()
+                conn.close()
+                return False
+
+            # 如果任务正在运行，先取消
+            if row[0] == "running":
+                self.cancel_scan(task_id)
+
+            # 删除结果（因为有外键约束，会级联删除）
+            cursor.execute("DELETE FROM scan_tasks WHERE id = %s", (task_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            # 从内存中移除
+            with self.lock:
+                if task_id in self.tasks:
+                    del self.tasks[task_id]
+
+            logger.info(f"任务 {task_id} 已删除")
+            return True
+        except Exception as e:
+            logger.error(f"删除任务失败: {e}")
+            return False
+
+    def get_results_from_db(self, task_id: str) -> Optional[ScanResultResponse]:
+        """从数据库获取扫描结果"""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 获取任务信息
+            cursor.execute(
+                """
+                SELECT status, processed_count, found_count, elapsed_time
+                FROM scan_tasks
+                WHERE id = %s
+                """,
+                (task_id,),
+            )
+            task_row = cursor.fetchone()
+            if not task_row:
+                cursor.close()
+                conn.close()
+                return None
+
+            # 获取结果
+            cursor.execute(
+                """
+                SELECT code, name, bsp_type, bsp_time, bsp_value, is_buy, kline_type
+                FROM scan_results
+                WHERE task_id = %s
+                ORDER BY bsp_time DESC
+                """,
+                (task_id,),
+            )
+
+            results = []
+            for r in cursor.fetchall():
+                results.append(
+                    ScanResultItem(
+                        code=r[0],
+                        name=r[1],
+                        bsp_type=r[2],
+                        bsp_time=r[3],
+                        bsp_value=r[4],
+                        is_buy=r[5],
+                        kline_type=r[6],
+                    )
+                )
+
+            cursor.close()
+            conn.close()
+
+            return ScanResultResponse(
+                task_id=task_id,
+                status=task_row[0],
+                results=results,
+                total_scanned=task_row[1] or 0,
+                total_found=task_row[2] or 0,
+                elapsed_time=task_row[3] or 0,
+            )
+        except Exception as e:
+            logger.error(f"获取数据库结果失败: {e}")
+            return None
+
+    # ==================== 扫描逻辑 ====================
 
     def scan_single_stock(
         self, code: str, request: ScanRequest, task: ScanTask
@@ -351,6 +831,9 @@ class ScanService:
         else:
             logger.info(f"股票列表(前10): {stocks[:10]}...")
 
+        # 创建数据库记录
+        self.create_task_in_db(task_id, request, len(stocks))
+
         task = ScanTask(task_id, len(stocks))
 
         with self.lock:
@@ -365,6 +848,9 @@ class ScanService:
 
     def _run_scan(self, task: ScanTask, stocks: List[str], request: ScanRequest):
         """在后台线程中执行扫描"""
+        last_db_update = time.time()
+        DB_UPDATE_INTERVAL = 5  # 每5秒更新一次数据库
+
         try:
             futures = {
                 self.executor.submit(self.scan_single_stock, code, request, task): code
@@ -387,6 +873,11 @@ class ScanService:
                     # 推送进度更新
                     self._push_progress(task)
 
+                    # 定期更新数据库
+                    if time.time() - last_db_update > DB_UPDATE_INTERVAL:
+                        self.update_task_progress(task)
+                        last_db_update = time.time()
+
                 except Exception as e:
                     logger.warning(f"处理股票 {code} 结果失败: {e}")
                     with task.lock:
@@ -407,6 +898,12 @@ class ScanService:
             logger.info(f"找到买点数: {task.found_count}")
             logger.info(f"耗时: {task.elapsed_time:.2f}秒")
 
+            # 保存结果到数据库
+            self.save_results_to_db(task.task_id, task.results)
+
+            # 更新任务状态
+            self.complete_task_in_db(task)
+
             # 最终进度推送
             self._push_progress(task)
 
@@ -415,6 +912,7 @@ class ScanService:
             with task.lock:
                 task.status = "error"
                 task.error_message = str(e)
+            self.complete_task_in_db(task)
             self._push_progress(task)
 
     def _push_progress(self, task: ScanTask):
@@ -442,11 +940,12 @@ class ScanService:
         return None
 
     def get_result(self, task_id: str) -> Optional[ScanResultResponse]:
-        """获取扫描结果"""
+        """获取扫描结果（优先从内存，其次从数据库）"""
         task = self.get_task(task_id)
         if task:
             return task.to_result()
-        return None
+        # 如果内存中没有，从数据库获取
+        return self.get_results_from_db(task_id)
 
     def cancel_scan(self, task_id: str) -> bool:
         """取消扫描任务"""
@@ -458,7 +957,7 @@ class ScanService:
         return False
 
     def cleanup_old_tasks(self, max_age_seconds: int = 3600):
-        """清理过期的任务"""
+        """清理过期的内存任务（数据库中的任务保留）"""
         current_time = time.time()
         with self.lock:
             expired_tasks = [

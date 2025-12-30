@@ -5,7 +5,9 @@ import type {
   ScanRequest,
   ScanTaskResponse,
   ScanProgress,
-  ScanResultResponse
+  ScanResultResponse,
+  ScanTaskListResponse,
+  ScanTaskDetailResponse
 } from '../types';
 
 const apiClient = axios.create({
@@ -82,5 +84,36 @@ export const scanApi = {
    */
   cancelScan: async (taskId: string): Promise<void> => {
     await apiClient.post(`/scan/cancel/${taskId}`);
+  },
+
+  /**
+   * 获取任务列表
+   */
+  getTasks: async (
+    page: number = 1,
+    pageSize: number = 20,
+    status?: string
+  ): Promise<ScanTaskListResponse> => {
+    const params: Record<string, any> = { page, page_size: pageSize };
+    if (status) {
+      params.status = status;
+    }
+    const response = await apiClient.get<ScanTaskListResponse>('/scan/tasks', { params });
+    return response.data;
+  },
+
+  /**
+   * 获取任务详情（含结果）
+   */
+  getTaskDetail: async (taskId: string): Promise<ScanTaskDetailResponse> => {
+    const response = await apiClient.get<ScanTaskDetailResponse>(`/scan/tasks/${taskId}`);
+    return response.data;
+  },
+
+  /**
+   * 删除任务
+   */
+  deleteTask: async (taskId: string): Promise<void> => {
+    await apiClient.delete(`/scan/tasks/${taskId}`);
   }
 };
