@@ -1,0 +1,104 @@
+
+.kline-info-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  user-select: none;
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
+  transition: background 0.3s ease;
+  line-height: 1.2;
+}
+
+body.dark-mode .kline-info-panel {
+  background: rgba(42, 42, 42, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.kline-info-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 100px;
+}
+
+.kline-info-close {
+  font-size: 44px;
+  font-weight: bold;
+  line-height: 1;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
+}
+
+.kline-info-change-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  min-width: 100px;
+}
+
+.kline-info-change-value {
+  font-weight: bold;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
+}
+
+.kline-info-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kline-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+}
+
+.kline-info-label {
+  color: var(--text-secondary);
+  font-weight: bold;
+  margin-right: 12px;
+  min-width: 24px;
+  transition: color 0.3s ease;
+}
+
+.kline-info-value {
+  color: var(--text-primary);
+  font-weight: bold;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
+  transition: color 0.3s ease;
+}
+
+.kline-info-up {
+  color: #eb3532 !important;
+}
+
+.kline-info-down {
+  color: #24a03b !important;
+}
+
+.kline-info-high {
+  color: #eb3532;
+}
+
+.kline-info-low {
+  color: #24a03b;
+}
+
+.kline-info-volume {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kline-info-spacer {
+  visibility: hidden;
+}

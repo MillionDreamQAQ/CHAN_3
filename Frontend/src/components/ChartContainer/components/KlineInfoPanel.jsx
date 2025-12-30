@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { FORMAT_CONFIG } from "../../../config/config";
+import "./KlineInfoPanel.css";
 
 const formatLargeNumber = (num) => {
   if (num >= FORMAT_CONFIG.volumeDivisorLarge) {
