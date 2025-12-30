@@ -11,10 +11,12 @@ import ChartContainer from "../../components/ChartContainer";
 import { scanApi, chanApi } from "../../services/api";
 import { DEFAULT_SCAN_CONFIG } from "../../constants/scan";
 import { getDefaultIndicators } from "../../config/config";
+import useStockSearch from "../../components/ChartContainer/hooks/useStockSearch";
 import "./ScanPage.css";
 
 const ScanPage = () => {
   const navigate = useNavigate();
+  const stockSearch = useStockSearch();
 
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode");
@@ -40,13 +42,11 @@ const ScanPage = () => {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [selectedTaskStatus, setSelectedTaskStatus] = useState(null);
 
-  // 图表弹窗相关状态
   const [chartModalOpen, setChartModalOpen] = useState(false);
   const [chartData, setChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // 图表指标和收藏状态
   const [indicators, setIndicators] = useState(() => getDefaultIndicators());
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem("favorites");
@@ -235,7 +235,6 @@ const ScanPage = () => {
     setSelectedRecord(null);
   };
 
-  // 图表 K线级别切换
   const handleChartKlineTypeChange = useCallback(
     async (klineType) => {
       if (!selectedRecord) return;
@@ -260,12 +259,10 @@ const ScanPage = () => {
     [selectedRecord]
   );
 
-  // MA 类型切换
   const handleSetMAType = useCallback((type) => {
     setIndicators((prev) => ({ ...prev, maType: type }));
   }, []);
 
-  // MA 周期切换
   const handleToggleMAPeriod = useCallback((period) => {
     setIndicators((prev) => ({
       ...prev,
@@ -273,12 +270,10 @@ const ScanPage = () => {
     }));
   }, []);
 
-  // 缠论指标切换
   const handleToggleIndicator = useCallback((key) => {
     setIndicators((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  // 收藏切换
   const handleToggleFavorite = useCallback((code) => {
     setFavorites((prev) => {
       const newFavorites = prev.includes(code)
@@ -288,6 +283,54 @@ const ScanPage = () => {
       return newFavorites;
     });
   }, []);
+
+  const handleChartStockChange = useCallback(
+    async (code) => {
+      if (!code) return;
+
+      const stockName = stockSearch.getStockName(code) || "";
+      setSelectedRecord((prev) => ({
+        ...prev,
+        code,
+        name: stockName,
+      }));
+      setChartLoading(true);
+
+      try {
+        const result = await chanApi.calculateChan({
+          code,
+          kline_type: selectedRecord?.kline_type || "day",
+          limit: 2000,
+        });
+        setChartData(result);
+      } catch (error) {
+        console.error("加载数据失败:", error);
+        message.error("加载数据失败");
+      } finally {
+        setChartLoading(false);
+      }
+    },
+    [selectedRecord?.kline_type, stockSearch]
+  );
+
+  const handleChartRefresh = useCallback(async () => {
+    if (!selectedRecord) return;
+
+    setChartLoading(true);
+    try {
+      const result = await chanApi.calculateChan({
+        code: selectedRecord.code,
+        kline_type: selectedRecord.kline_type,
+        limit: 2000,
+      });
+      setChartData(result);
+    } catch (error) {
+      console.error("刷新数据失败:", error);
+      message.error("刷新数据失败");
+    } finally {
+      setChartLoading(false);
+    }
+  }, [selectedRecord]);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -350,17 +393,13 @@ const ScanPage = () => {
         </div>
 
         <Modal
-          title={
-            selectedRecord
-              ? `${selectedRecord.name} (${selectedRecord.code})`
-              : "股票详情"
-          }
           open={chartModalOpen}
           onCancel={handleCloseChartModal}
+          closeIcon={null}
           footer={null}
-          width="95vw"
+          width="98vw"
           style={{ top: 20 }}
-          styles={{ body: { height: "85vh", padding: 0 } }}
+          styles={{ body: { height: "88vh", padding: 0 } }}
           destroyOnHidden={true}
         >
           {chartLoading ? (
@@ -379,11 +418,14 @@ const ScanPage = () => {
                 klineType: selectedRecord?.kline_type,
                 limit: 2000,
               }}
+              stockSearch={stockSearch}
               onKlineTypeChange={handleChartKlineTypeChange}
               onSetMAType={handleSetMAType}
               onToggleMAPeriod={handleToggleMAPeriod}
               onToggleIndicator={handleToggleIndicator}
               onToggleFavorite={handleToggleFavorite}
+              onStockChange={handleChartStockChange}
+              onRefresh={handleChartRefresh}
             />
           ) : null}
         </Modal>
