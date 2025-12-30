@@ -1,0 +1,74 @@
+.chart-context-menu .ant-dropdown-menu {
+  padding: 8px 0;
+  min-width: 180px;
+}
+
+.chart-context-menu .menu-section-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chart-context-menu .menu-item-content {
+  padding: 4px 0;
+}
+
+.chart-context-menu .menu-item-content.ma-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-context-menu .ant-checkbox-wrapper {
+  margin-inline-start: 0 !important;
+}
+
+.chart-context-menu .ant-dropdown-menu-item {
+  padding: 4px 16px;
+}
+
+.chart-context-menu .ant-dropdown-menu-item-disabled {
+  cursor: default;
+  padding: 8px 16px 4px;
+}
+
+.chart-context-menu .ant-dropdown-menu-item-disabled:hover {
+  background: transparent !important;
+}
+
+/* Dark mode */
+.chart-context-menu.dark .ant-dropdown-menu {
+  background: #2a2a2a;
+  border-color: #404040;
+}
+
+.chart-context-menu.dark .ant-dropdown-menu-item {
+  color: #e0e0e0;
+}
+
+.chart-context-menu.dark .ant-dropdown-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chart-context-menu.dark .menu-section-header {
+  color: #888;
+}
+
+.chart-context-menu.dark .ant-checkbox-wrapper {
+  color: #e0e0e0;
+}
+
+.chart-context-menu.dark .ant-segmented {
+  background: #404040;
+}
+
+.chart-context-menu.dark .ant-segmented-item {
+  color: #e0e0e0;
+}
+
+.chart-context-menu.dark .ant-segmented-item-selected {
+  background: #177ddc;
+  color: #fff;
+}

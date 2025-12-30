@@ -21,11 +21,54 @@ import {
 } from "../../config/config";
 
 import { useMeasure, useChartSync, useChartInit } from "./hooks";
-import { KlineInfoPanel, MeasureInfoPanel, ChartTooltip } from "./components";
+import {
+  KlineInfoPanel,
+  MeasureInfoPanel,
+  ChartTooltip,
+  StockTitleBar,
+  ChartControlPanel,
+  ChartContextMenu,
+  StockSearchModal,
+} from "./components";
 
-const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
+const ChartContainer = ({
+  data,
+  darkMode = false,
+  indicators = {},
+  favorites = [],
+  currentStock = {},
+  stockSearch = {},
+  onStockChange,
+  onKlineTypeChange,
+  onLimitChange,
+  onRefresh,
+  onToggleFavorite,
+  onSetMAType,
+  onToggleMAPeriod,
+  onToggleIndicator,
+}) => {
   const [loading, setLoading] = useState(true);
   const [klineInfo, setKlineInfo] = useState(null);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+
+  // 股票名称
+  const stockName = useMemo(() => {
+    if (data?.name) return data.name;
+    return stockSearch.getStockName?.(currentStock.code) || "";
+  }, [data?.name, stockSearch, currentStock.code]);
+
+  // Ctrl+F 快捷键监听
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === "f") {
+        e.preventDefault();
+        setSearchModalOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const COLORS = useMemo(() => getColors(darkMode), [darkMode]);
   const LINE_SERIES_CONFIGS = useMemo(
@@ -544,49 +587,79 @@ const ChartContainer = ({ data, darkMode = false, indicators = {} }) => {
   }, [indicators.maType, data?.klines]);
 
   return (
-    <div className="chart-container">
-      {loading && (
-        <div className="loading-indicator">
-          <div className="spinner" />
-          <p>图表数据加载中...</p>
-        </div>
-      )}
-      <div
-        className="chart-wrapper"
-        ref={(el) => (containerRefs.current.main = el)}
-      >
-        {data && (data.name || data.code) && (
-          <div className="stock-title">
-            <span className="stock-name">{data.name || "未知股票"}</span>
-            <span className="stock-code">{data.code}</span>
+    <ChartContextMenu
+      indicators={indicators}
+      onSetMAType={onSetMAType}
+      onToggleMAPeriod={onToggleMAPeriod}
+      onToggleIndicator={onToggleIndicator}
+      darkMode={darkMode}
+    >
+      <div className="chart-container">
+        {loading && (
+          <div className="loading-indicator">
+            <div className="spinner" />
+            <p>图表数据加载中...</p>
           </div>
         )}
-        <KlineInfoPanel klineInfo={klineInfo} />
-        <ChartTooltip ref={(el) => (containerRefs.current.tooltip = el)} />
-        {measureRect && (
-          <div
-            className={`measure-rect ${measureRect.isUp ? "up" : "down"}`}
-            style={{
-              left: measureRect.left,
-              top: measureRect.top,
-              width: measureRect.width,
-              height: measureRect.height,
-            }}
+        <div
+          className="chart-wrapper"
+          ref={(el) => (containerRefs.current.main = el)}
+        >
+          <StockTitleBar
+            stockName={stockName}
+            stockCode={currentStock.code || data?.code || ""}
+            isFavorite={favorites.includes(currentStock.code)}
+            onSearchClick={() => setSearchModalOpen(true)}
+            onToggleFavorite={() => onToggleFavorite?.(currentStock.code)}
+            darkMode={darkMode}
           />
-        )}
-        {measureState.startPoint && !measureState.endPoint && (
-          <div className="measure-hint">按住 Shift 点击第二个点完成测量</div>
-        )}
-        <MeasureInfoPanel
-          measureInfo={measureState.measureInfo}
-          onClose={handleClearMeasure}
+          <ChartControlPanel
+            klineType={currentStock.klineType}
+            limit={currentStock.limit}
+            onKlineTypeChange={onKlineTypeChange}
+            onLimitChange={onLimitChange}
+            onRefresh={onRefresh}
+            darkMode={darkMode}
+          />
+          <KlineInfoPanel klineInfo={klineInfo} />
+          <ChartTooltip ref={(el) => (containerRefs.current.tooltip = el)} />
+          {measureRect && (
+            <div
+              className={`measure-rect ${measureRect.isUp ? "up" : "down"}`}
+              style={{
+                left: measureRect.left,
+                top: measureRect.top,
+                width: measureRect.width,
+                height: measureRect.height,
+              }}
+            />
+          )}
+          {measureState.startPoint && !measureState.endPoint && (
+            <div className="measure-hint">按住 Shift 点击第二个点完成测量</div>
+          )}
+          <MeasureInfoPanel
+            measureInfo={measureState.measureInfo}
+            onClose={handleClearMeasure}
+          />
+        </div>
+        <div
+          className="macd-wrapper"
+          ref={(el) => (containerRefs.current.macd = el)}
+        />
+        <StockSearchModal
+          open={searchModalOpen}
+          onClose={() => setSearchModalOpen(false)}
+          onSelectStock={(code) => {
+            onStockChange?.(code);
+            setSearchModalOpen(false);
+          }}
+          favorites={favorites}
+          onToggleFavorite={onToggleFavorite}
+          stocksLoading={stockSearch.loading}
+          search={stockSearch.search}
         />
       </div>
-      <div
-        className="macd-wrapper"
-        ref={(el) => (containerRefs.current.macd = el)}
-      />
-    </div>
+    </ChartContextMenu>
   );
 };
 

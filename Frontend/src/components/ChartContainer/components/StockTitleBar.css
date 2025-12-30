@@ -1,0 +1,87 @@
+.stock-title-bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stock-title-bar.dark {
+  background: rgba(42, 42, 42, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.stock-title-bar .stock-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.stock-title-bar .stock-display:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.stock-title-bar.dark .stock-display:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stock-title-bar .stock-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.stock-title-bar.dark .stock-name {
+  color: #fff;
+}
+
+.stock-title-bar .stock-code {
+  font-size: 13px;
+  color: #666;
+}
+
+.stock-title-bar.dark .stock-code {
+  color: #aaa;
+}
+
+.stock-title-bar .stock-code::before {
+  content: "-";
+  margin-right: 8px;
+  color: #999;
+}
+
+.stock-title-bar .title-bar-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.stock-title-bar.dark .title-bar-btn {
+  color: #aaa;
+}
+
+.stock-title-bar .title-bar-btn:hover {
+  color: #1890ff;
+  background: rgba(24, 144, 255, 0.1);
+}
+
+.stock-title-bar .favorite-btn:hover {
+  color: #fadb14;
+  background: rgba(250, 219, 20, 0.1);
+}

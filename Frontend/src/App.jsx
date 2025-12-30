@@ -5,6 +5,7 @@ import { chanApi } from "./services/api";
 import { showMessage } from "./utils/utils";
 import { ConfigProvider, message, theme } from "antd";
 import { getDefaultIndicators } from "./config/config";
+import useStockSearch from "./components/ChartContainer/hooks/useStockSearch";
 
 import "./App.css";
 
@@ -17,15 +18,29 @@ function App() {
     return saved === "true";
   });
 
-  const [initialStock, setInitialStock] = useState(null);
+  // 股票查询相关状态
+  const [currentStock, setCurrentStock] = useState({
+    code: "sh.000001",
+    klineType: "day",
+    limit: 2000,
+  });
+
+  // 股票搜索 hook
+  const stockSearch = useStockSearch();
+
   const initialLoadRef = useRef(true);
 
+  // 处理从 ScanPage 跳转过来的情况
   useEffect(() => {
     const selectedStock = localStorage.getItem("selectedStock");
     if (selectedStock && initialLoadRef.current) {
       try {
         const stockInfo = JSON.parse(selectedStock);
-        setInitialStock(stockInfo);
+        setCurrentStock((prev) => ({
+          ...prev,
+          code: stockInfo.code,
+          klineType: stockInfo.klineType || prev.klineType,
+        }));
         localStorage.removeItem("selectedStock");
       } catch (e) {
         console.error("解析选中股票失败:", e);
@@ -106,6 +121,21 @@ function App() {
     });
   }, []);
 
+  // 股票/周期/数量变更回调
+  const handleStockChange = useCallback((code) => {
+    setCurrentStock((prev) => ({ ...prev, code }));
+  }, []);
+
+  const handleKlineTypeChange = useCallback((klineType) => {
+    setCurrentStock((prev) => ({ ...prev, klineType }));
+  }, []);
+
+  const handleLimitChange = useCallback((limit) => {
+    if (limit) {
+      setCurrentStock((prev) => ({ ...prev, limit }));
+    }
+  }, []);
+
   const handleQuery = async (request) => {
     showMessage(messageApi, "query", "info", "正在查询，请稍候...", 0);
     setLoading(true);
@@ -125,28 +155,47 @@ function App() {
     }
   };
 
+  // 刷新回调
+  const handleRefresh = useCallback(() => {
+    handleQuery({
+      code: currentStock.code,
+      kline_type: currentStock.klineType,
+      limit: currentStock.limit,
+    });
+  }, [currentStock]);
+
+  // 股票/周期/数量变化时自动查询
+  useEffect(() => {
+    if (currentStock.code) {
+      handleQuery({
+        code: currentStock.code,
+        kline_type: currentStock.klineType,
+        limit: currentStock.limit,
+      });
+    }
+  }, [currentStock.code, currentStock.klineType, currentStock.limit]);
+
   return (
     <ConfigProvider theme={themeConfig}>
       <div className="app">
         {contextHolder}
-        <Header
-          onQuery={handleQuery}
-          loading={loading}
-          darkMode={darkMode}
-          indicators={indicators}
-          favorites={favorites}
-          initialStock={initialStock}
-          onSetMAType={setMAType}
-          onToggleIndicator={toggleIndicator}
-          onToggleMAPeriod={toggleMAPeriod}
-          onToggleDarkMode={toggleDarkMode}
-          onToggleFavorite={toggleFavorite}
-        />
+        <Header darkMode={darkMode} onToggleDarkMode={toggleDarkMode} />
         <div className="main-content">
           <ChartContainer
             data={data}
             darkMode={darkMode}
             indicators={indicators}
+            favorites={favorites}
+            currentStock={currentStock}
+            stockSearch={stockSearch}
+            onStockChange={handleStockChange}
+            onKlineTypeChange={handleKlineTypeChange}
+            onLimitChange={handleLimitChange}
+            onRefresh={handleRefresh}
+            onToggleFavorite={toggleFavorite}
+            onSetMAType={setMAType}
+            onToggleMAPeriod={toggleMAPeriod}
+            onToggleIndicator={toggleIndicator}
           />
         </div>
       </div>

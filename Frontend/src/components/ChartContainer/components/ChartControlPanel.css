@@ -1,0 +1,61 @@
+.chart-control-panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chart-control-panel.dark {
+  background: rgba(42, 42, 42, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.chart-control-panel .kline-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-control-panel .kline-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 0 2px;
+}
+
+.chart-control-panel.dark .kline-divider {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.chart-control-panel .limit-input {
+  width: 80px;
+  height: 24px;
+}
+
+.chart-control-panel.dark .limit-input {
+  background-color: #333;
+  color: #fff;
+  border-color: #555;
+}
+
+.chart-control-panel.dark .limit-input:hover,
+.chart-control-panel.dark .limit-input:focus {
+  border-color: #177ddc;
+}
+
+.chart-control-panel .refresh-button {
+  height: 24px;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}

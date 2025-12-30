@@ -64,50 +64,6 @@ body.dark-mode .loading-indicator {
   margin: 0;
 }
 
-/* Stock Title */
-.stock-title {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-  user-select: none;
-  transition: background 0.3s ease;
-}
-
-body.dark-mode .stock-title {
-  background: rgba(42, 42, 42, 0.95);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.stock-name {
-  font-size: 16px;
-  font-weight: bold;
-  color: var(--text-primary);
-  transition: color 0.3s ease;
-}
-
-.stock-code {
-  font-size: 14px;
-  color: var(--text-secondary);
-  font-weight: bold;
-  transition: color 0.3s ease;
-}
-
-.stock-code::before {
-  content: "-";
-  margin-right: 8px;
-  color: var(--text-secondary);
-}
-
 /* Kline Info Panel */
 .kline-info-panel {
   position: absolute;
