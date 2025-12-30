@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { FORMAT_CONFIG } from "../../../config/config";
+import "./MeasureInfoPanel.css";
 
 const MeasureInfoPanel = ({ measureInfo, onClose }) => {
   if (!measureInfo) return null;
