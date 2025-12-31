@@ -56,11 +56,11 @@ export const TASK_STATUS_TEXT = {
 };
 
 export const DEFAULT_SCAN_CONFIG = {
-  stockPool: "all",
-  boards: [],
+  stockPool: "boards",
+  boards: ["sh_main", "sz_main"],
   stockCodes: [],
   klineType: "day",
-  bspTypes: ["1", "1p", "2"],
+  bspTypes: ["2", "2s"],
   timeWindowDays: 1,
   limit: 1000,
 };
