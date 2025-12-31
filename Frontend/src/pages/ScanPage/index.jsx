@@ -12,16 +12,13 @@ import { scanApi, chanApi } from "../../services/api";
 import { DEFAULT_SCAN_CONFIG } from "../../constants/scan";
 import { getDefaultIndicators } from "../../config/config";
 import useStockSearch from "../../components/ChartContainer/hooks/useStockSearch";
+import { useTheme } from "../../contexts/ThemeContext";
 import "./ScanPage.css";
 
 const ScanPage = () => {
   const navigate = useNavigate();
   const stockSearch = useStockSearch();
-
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("darkMode");
-    return saved ? JSON.parse(saved) : false;
-  });
+  const { darkMode } = useTheme();
 
   const [config, setConfig] = useState({ ...DEFAULT_SCAN_CONFIG });
 
@@ -73,14 +70,6 @@ const ScanPage = () => {
       setTasksLoading(false);
     }
   }, [page, pageSize]);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add("dark-mode");
-    } else {
-      document.body.classList.remove("dark-mode");
-    }
-  }, [darkMode]);
 
   useEffect(() => {
     loadTasks();
