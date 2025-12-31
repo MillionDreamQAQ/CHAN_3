@@ -6,9 +6,8 @@ from dotenv import load_dotenv
 # 添加父目录到路径，以便导入Chan模块
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from Chan import CChan
-from ChanConfig import CChanConfig
-from Common.CEnum import AUTYPE, DATA_SRC, KL_TYPE, BSP_TYPE
+from Chan import CChan, CChanConfig
+from Chan.Common.CEnum import AUTYPE, DATA_SRC, KL_TYPE
 from app.models.schemas import (
     ChanRequest,
     ChanResponse,
