@@ -141,7 +141,7 @@ const ChartContextMenu = ({
     <Dropdown
       menu={{ items: menuItems }}
       trigger={["contextMenu"]}
-      overlayClassName={`chart-context-menu ${darkMode ? "dark" : ""}`}
+      className={`chart-context-menu ${darkMode ? "dark" : ""}`}
     >
       {children}
     </Dropdown>
