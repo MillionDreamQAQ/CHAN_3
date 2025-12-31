@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfigProvider, theme, Button, message, Modal, Spin } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -73,6 +73,14 @@ const ScanPage = () => {
       setTasksLoading(false);
     }
   }, [page, pageSize]);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     loadTasks();
