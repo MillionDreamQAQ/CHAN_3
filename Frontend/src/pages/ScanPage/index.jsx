@@ -9,7 +9,7 @@ import {
 } from "../../components/ScanPage";
 import ChartContainer from "../../components/ChartContainer";
 import { scanApi, chanApi } from "../../services/api";
-import { DEFAULT_SCAN_CONFIG } from "../../constants/scan";
+import { DEFAULT_SCAN_CONFIG } from "../../utils/utils";
 import { getDefaultIndicators } from "../../config/config";
 import useStockSearch from "../../components/ChartContainer/hooks/useStockSearch";
 import { useTheme } from "../../contexts/ThemeContext";

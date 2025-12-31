@@ -3,7 +3,7 @@ import { Table, Tag, Empty, Button, Space, message } from "antd";
 import { FileExcelOutlined, EyeOutlined } from "@ant-design/icons";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { BSP_TYPE_COLORS } from "../../constants/scan";
+import { BSP_TYPE_COLORS } from "../../utils/utils";
 import "./ResultPanel.css";
 
 /**

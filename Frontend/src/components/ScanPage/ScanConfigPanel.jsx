@@ -19,7 +19,7 @@ import {
   KLINE_OPTIONS,
   BOARD_OPTIONS,
   BSP_TYPE_COLORS,
-} from "../../constants/scan";
+} from "../../utils/utils";
 import "./ScanConfigPanel.css";
 
 /**

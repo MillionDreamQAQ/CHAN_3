@@ -1,6 +1,6 @@
 import { Table, Tag, Button, Popconfirm, Progress } from "antd";
 import { DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
-import { TASK_STATUS_COLORS, TASK_STATUS_TEXT } from "../../constants/scan";
+import { TASK_STATUS_COLORS, TASK_STATUS_TEXT } from "../../utils/utils";
 import "./TaskListPanel.css";
 
 /**
