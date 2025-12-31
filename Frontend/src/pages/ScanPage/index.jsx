@@ -42,6 +42,9 @@ const ScanPage = () => {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [selectedTaskStatus, setSelectedTaskStatus] = useState(null);
 
+  const [viewingAllResults, setViewingAllResults] = useState(false);
+  const [allResultsData, setAllResultsData] = useState(null);
+
   const [chartModalOpen, setChartModalOpen] = useState(false);
   const [chartData, setChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
@@ -77,6 +80,11 @@ const ScanPage = () => {
 
   const handleSelectTask = async (taskId) => {
     if (taskId === selectedTaskId) return;
+
+    if (viewingAllResults) {
+      setViewingAllResults(false);
+      setAllResultsData(null);
+    }
 
     setSelectedTaskId(taskId);
     setResultsLoading(true);
@@ -206,6 +214,8 @@ const ScanPage = () => {
     setSelectedTaskStatus(null);
     setConfig({ ...DEFAULT_SCAN_CONFIG });
     setProgress(null);
+    setViewingAllResults(false);
+    setAllResultsData(null);
   };
 
   const handleSelectStock = async (record) => {
@@ -336,6 +346,44 @@ const ScanPage = () => {
     setPage(newPage);
   };
 
+  const handleViewAllResults = async () => {
+    setResultsLoading(true);
+    try {
+      const data = await scanApi.getAllResults("completed");
+
+      if (data.total_results === 0) {
+        message.info("暂无已完成任务的扫描结果");
+        return;
+      }
+
+      const formattedResults = data.results.map((r) => ({
+        code: r.code,
+        name: r.name,
+        bsp_type: r.bsp_type,
+        bsp_time: r.bsp_time,
+        bsp_value: r.bsp_value,
+        is_buy: r.is_buy,
+        kline_type: r.kline_type,
+        task_id: r.task_id,
+      }));
+
+      setResults(formattedResults);
+      setAllResultsData(data);
+      setViewingAllResults(true);
+      setSelectedTaskId(null);
+      setReadOnly(false);
+
+      message.success(
+        `已加载 ${data.total_tasks} 个任务的 ${data.total_results} 条结果`
+      );
+    } catch (error) {
+      console.error("加载所有结果失败:", error);
+      message.error("加载所有结果失败");
+    } finally {
+      setResultsLoading(false);
+    }
+  };
+
   return (
     <ConfigProvider theme={themeConfig}>
       <div className={`scan-page ${darkMode ? "dark-mode" : ""}`}>
@@ -388,6 +436,9 @@ const ScanPage = () => {
               loading={resultsLoading}
               onSelectStock={handleSelectStock}
               taskStatus={selectedTaskStatus}
+              onViewAllResults={handleViewAllResults}
+              viewingAll={viewingAllResults}
+              allResultsData={allResultsData}
             />
           </div>
         </div>

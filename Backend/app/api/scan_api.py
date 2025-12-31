@@ -189,3 +189,26 @@ async def delete_task(task_id: str):
         return {"success": True, "message": "任务已删除"}
     else:
         raise HTTPException(status_code=404, detail="任务不存在")
+
+
+@router.get("/all-results")
+async def get_all_completed_results(
+    status: Optional[str] = Query("completed", description="任务状态筛选"),
+    limit: Optional[int] = Query(None, ge=1, le=10000, description="结果数量限制"),
+):
+    """
+    获取所有已完成任务的扫描结果汇总
+
+    Args:
+        status: 任务状态，默认为completed
+        limit: 限制返回的结果总数（可选）
+
+    Returns:
+        包含所有任务信息和结果的汇总数据
+    """
+    try:
+        data = scan_service.get_all_results(status, limit)
+        return data
+    except Exception as e:
+        logger.error(f"获取所有结果失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取所有结果失败: {str(e)}")

@@ -146,3 +146,23 @@ export interface ScanTaskDetailResponse {
   task: ScanTaskDB;
   results: ScanResultItem[];
 }
+
+export interface AllResultsResponse {
+  total_tasks: number;
+  total_results: number;
+  tasks: Array<{
+    id: string;
+    status: string;
+    stock_pool: string;
+    boards: string[] | null;
+    stock_codes: string[] | null;
+    kline_type: string;
+    bsp_types: string[];
+    time_window_days: number;
+    kline_limit: number;
+    found_count: number;
+    elapsed_time: number;
+    created_at: string;
+  }>;
+  results: ScanResultItem[];
+}

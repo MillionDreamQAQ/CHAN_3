@@ -515,6 +515,132 @@ class ScanService:
             logger.error(f"删除任务失败: {e}")
             return False
 
+    def get_all_results(
+        self, status: Optional[str] = "completed", limit: Optional[int] = None
+    ):
+        """
+        获取所有指定状态任务的结果汇总
+
+        Args:
+            status: 任务状态筛选（completed/all）
+            limit: 结果数量限制
+
+        Returns:
+            包含任务列表和结果汇总的字典
+        """
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 构建任务查询条件
+            where_clause = ""
+            params = []
+            if status and status != "all":
+                where_clause = "WHERE t.status = %s"
+                params.append(status)
+
+            # 查询符合条件的任务
+            cursor.execute(
+                f"""
+                SELECT t.id, t.status, t.stock_pool, t.boards, t.stock_codes,
+                       t.kline_type, t.bsp_types, t.time_window_days, t.kline_limit,
+                       t.found_count, t.elapsed_time, t.created_at
+                FROM scan_tasks t
+                {where_clause}
+                ORDER BY t.created_at DESC
+                """,
+                params,
+            )
+
+            tasks_info = []
+            task_ids = []
+
+            for row in cursor.fetchall():
+                task_id = str(row[0])
+                task_ids.append(task_id)
+
+                # 格式化时间
+                created_at = row[11]
+                if isinstance(created_at, datetime):
+                    created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    created_at_str = str(created_at)
+
+                tasks_info.append(
+                    {
+                        "id": task_id,
+                        "status": row[1],
+                        "stock_pool": row[2],
+                        "boards": row[3],
+                        "stock_codes": row[4],
+                        "kline_type": row[5],
+                        "bsp_types": row[6],
+                        "time_window_days": row[7],
+                        "kline_limit": row[8],
+                        "found_count": row[9] or 0,
+                        "elapsed_time": row[10] or 0,
+                        "created_at": created_at_str,
+                    }
+                )
+
+            # 如果没有任务，直接返回空结果
+            if not task_ids:
+                cursor.close()
+                conn.close()
+                return {
+                    "total_tasks": 0,
+                    "total_results": 0,
+                    "tasks": [],
+                    "results": [],
+                }
+
+            # 查询所有结果
+            placeholders = ",".join(["%s"] * len(task_ids))
+            limit_clause = f"LIMIT {limit}" if limit else ""
+
+            cursor.execute(
+                f"""
+                SELECT r.task_id, r.code, r.name, r.bsp_type, r.bsp_time,
+                       r.bsp_value, r.is_buy, r.kline_type
+                FROM scan_results r
+                WHERE r.task_id IN ({placeholders})
+                ORDER BY r.bsp_time DESC
+                {limit_clause}
+                """,
+                task_ids,
+            )
+
+            results = []
+            for r in cursor.fetchall():
+                results.append(
+                    {
+                        "task_id": str(r[0]),
+                        "code": r[1],
+                        "name": r[2],
+                        "bsp_type": r[3],
+                        "bsp_time": r[4],
+                        "bsp_value": r[5],
+                        "is_buy": r[6],
+                        "kline_type": r[7],
+                    }
+                )
+
+            cursor.close()
+            conn.close()
+
+            logger.info(f"获取所有结果: {len(tasks_info)}个任务, {len(results)}条结果")
+
+            return {
+                "total_tasks": len(tasks_info),
+                "total_results": len(results),
+                "tasks": tasks_info,
+                "results": results,
+            }
+
+        except Exception as e:
+            logger.error(f"获取所有结果失败: {e}")
+            raise
+
     def get_results_from_db(self, task_id: str) -> Optional[ScanResultResponse]:
         """从数据库获取扫描结果"""
         try:
@@ -702,7 +828,7 @@ class ScanService:
                         if t in bsp_type_values:
                             bsp.type = t
                             break
-                else: 
+                else:
                     bsp.type = bsp_type_values[0]
 
             # 解析买点时间

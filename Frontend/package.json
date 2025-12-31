@@ -12,12 +12,14 @@
     "@ant-design/colors": "^8.0.0",
     "antd": "^6.1.1",
     "axios": "^1.6.5",
+    "file-saver": "^2.0.5",
     "fuse.js": "^7.1.0",
     "lightweight-charts": "^5.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.11.0",
-    "technicalindicators": "^3.1.0"
+    "technicalindicators": "^3.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.48",

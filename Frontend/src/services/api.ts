@@ -7,7 +7,8 @@ import type {
   ScanProgress,
   ScanResultResponse,
   ScanTaskListResponse,
-  ScanTaskDetailResponse
+  ScanTaskDetailResponse,
+  AllResultsResponse
 } from '../types';
 
 const apiClient = axios.create({
@@ -115,5 +116,20 @@ export const scanApi = {
    */
   deleteTask: async (taskId: string): Promise<void> => {
     await apiClient.delete(`/scan/tasks/${taskId}`);
+  },
+
+  /**
+   * 获取所有已完成任务的结果汇总
+   */
+  getAllResults: async (
+    status: string = 'completed',
+    limit?: number
+  ): Promise<AllResultsResponse> => {
+    const params: Record<string, any> = { status };
+    if (limit) {
+      params.limit = limit;
+    }
+    const response = await apiClient.get<AllResultsResponse>('/scan/all-results', { params });
+    return response.data;
   }
 };
