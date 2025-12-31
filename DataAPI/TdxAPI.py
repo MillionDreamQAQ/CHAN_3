@@ -7,14 +7,17 @@ API地址: http://localhost:8080
 import logging
 import os
 import requests
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, date
+from typing import Optional, List, Tuple
 from Common.CEnum import AUTYPE, DATA_FIELD, KL_TYPE
 from Common.CTime import CTime
 from KLine.KLine_Unit import CKLine_Unit
 from .CommonStockAPI import CCommonStockApi
 
 logger = logging.getLogger(__name__)
+
+# 基金拆分数据缓存（避免重复查询数据库）
+_fund_split_cache = {}
 
 
 class CTdxStockAPI(CCommonStockApi):
@@ -101,6 +104,13 @@ class CTdxStockAPI(CCommonStockApi):
                 return
 
             logger.info(f"成功获取 {len(kline_list)} 条K线数据")
+
+            # 如果是ETF，应用拆分调整
+            if is_etf:
+                split_data = self._get_fund_split_data(self.code)
+                if split_data:
+                    logger.info(f"发现 {len(split_data)} 条拆分记录，正在应用调整...")
+                    kline_list = self._apply_split_adjustment(kline_list, split_data)
 
             # 转换数据格式并返回
             for kline_item in kline_list:
@@ -266,6 +276,106 @@ class CTdxStockAPI(CCommonStockApi):
             # 失败时使用默认值
             self.name = self.code
             self.is_stock = not self._is_index_code(self.code)
+
+    def _get_fund_split_data(self, code: str) -> List[Tuple[date, float]]:
+        """
+        从数据库获取基金拆分数据
+
+        Args:
+            code: 基金代码（如 sz.159567）
+
+        Returns:
+            list: [(split_date, split_ratio), ...] 按日期升序排列
+        """
+        global _fund_split_cache
+
+        # 检查缓存
+        if code in _fund_split_cache:
+            return _fund_split_cache[code]
+
+        try:
+            import psycopg
+            from dotenv import load_dotenv
+
+            load_dotenv()
+
+            with psycopg.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5432"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD"),
+                dbname=os.getenv("DB_NAME", "stock_db"),
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT split_date, split_ratio, split_type
+                        FROM fund_split
+                        WHERE fund_code = %s
+                        AND split_type = '份额分拆'
+                        ORDER BY split_date ASC
+                        """,
+                        (code,),
+                    )
+                    result = [(row[0], row[1]) for row in cursor.fetchall()]
+
+                    # 缓存结果
+                    _fund_split_cache[code] = result
+                    return result
+
+        except Exception as e:
+            logger.debug(f"查询拆分数据失败（可能表不存在）: {e}")
+            _fund_split_cache[code] = []
+            return []
+
+    def _apply_split_adjustment(
+        self, kline_list: list, split_data: List[Tuple[date, float]]
+    ) -> list:
+        """
+        应用拆分调整
+
+        对于每个拆分记录，将拆分日期之前的数据除以拆分比例
+        处理多次拆分的情况（累积计算）
+
+        例如：split_ratio=2 表示1拆2，拆分前价格较高，
+        将拆分前的数据除以2，使其与拆分后的数据保持连续
+
+        Args:
+            kline_list: K线数据列表（原始格式）
+            split_data: 拆分数据列表 [(split_date, split_ratio), ...]
+
+        Returns:
+            调整后的K线数据列表
+        """
+        if not split_data:
+            return kline_list
+
+        for kline in kline_list:
+            # 解析K线日期
+            time_str = kline["Time"]
+            if "+" in time_str:
+                time_str = time_str.split("+")[0]
+            elif time_str.endswith("Z"):
+                time_str = time_str[:-1]
+
+            kline_dt = datetime.fromisoformat(time_str)
+            kline_date = kline_dt.date()
+
+            # 计算累积拆分比例（拆分日之前的数据需要除以比例）
+            cumulative_ratio = 1.0
+            for split_date, split_ratio in split_data:
+                if kline_date <= split_date:
+                    cumulative_ratio *= split_ratio
+
+            # 应用调整（将拆分前的数据缩小）
+            if cumulative_ratio != 1.0:
+                kline["Open"] = int(kline["Open"] / cumulative_ratio)
+                kline["High"] = int(kline["High"] / cumulative_ratio)
+                kline["Low"] = int(kline["Low"] / cumulative_ratio)
+                kline["Close"] = int(kline["Close"] / cumulative_ratio)
+                kline["Amount"] = int(kline["Amount"] / cumulative_ratio)
+
+        return kline_list
 
     @classmethod
     def do_init(cls):
