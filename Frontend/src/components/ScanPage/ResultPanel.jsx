@@ -152,7 +152,7 @@ const ResultPanel = ({
       width: 80,
       align: "left",
       sorter: (a, b) => a.bsp_value - b.bsp_value,
-      render: (value) => value.toFixed(2),
+      render: (value) => value.toFixed(2) + " 元",
       defaultSortOrder: "descend",
     },
     {
@@ -160,6 +160,28 @@ const ResultPanel = ({
       dataIndex: "kline_type",
       key: "kline_type",
       width: 80,
+      render: (value) => {
+        switch (value) {
+          case "day":
+            return "日线";
+          case "week":
+            return "周线";
+          case "month":
+            return "月线";
+          case "hour":
+            return "小时线";
+          case "minute1":
+            return "1分钟线";
+          case "minute5":
+            return "5分钟线";
+          case "minute15":
+            return "15分钟线";
+          case "minute30":
+            return "30分钟线";
+          default:
+            return value;
+        }
+      },
     },
   ];
 
@@ -186,7 +208,6 @@ const ResultPanel = ({
           {viewingAll ? "所有任务扫描结果" : "当前扫描结果"}
         </span>
         <Space size="small">
-          <span className="result-count">共 {results.length} 个买点</span>
           {!viewingAll && (
             <Button
               type="primary"

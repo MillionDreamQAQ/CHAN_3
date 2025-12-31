@@ -1,5 +1,4 @@
-import React from "react";
-import { Table, Tag, Button, Popconfirm, Space, Progress } from "antd";
+import { Table, Tag, Button, Popconfirm, Progress } from "antd";
 import { DeleteOutlined, ReloadOutlined } from "@ant-design/icons";
 import { TASK_STATUS_COLORS, TASK_STATUS_TEXT } from "../../constants/scan";
 import "./TaskListPanel.css";

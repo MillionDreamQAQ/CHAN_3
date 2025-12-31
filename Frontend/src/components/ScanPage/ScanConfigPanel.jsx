@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Radio,
   Checkbox,
@@ -76,7 +75,7 @@ const ScanConfigPanel = ({
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            size="medium"
+            size="small"
             onClick={onNewTask}
           >
             新建任务
