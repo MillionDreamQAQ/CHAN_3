@@ -13,8 +13,6 @@ from app.models.schemas import (
     ScanRequest,
     ScanTaskResponse,
     ScanResultResponse,
-)
-from app.models.scan_models import (
     ScanTaskListResponse,
     ScanTaskDetailResponse,
 )

@@ -27,8 +27,6 @@ from app.models.schemas import (
     ScanResultItem,
     ScanResultResponse,
     ChanRequest,
-)
-from app.models.scan_models import (
     ScanTaskDB,
     ScanTaskListItem,
     ScanTaskListResponse,
